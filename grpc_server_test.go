@@ -15,7 +15,7 @@
 
 */
 
-package grpc_server
+package backbone
 
 import (
 	"testing"

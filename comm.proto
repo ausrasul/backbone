@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package comm;
+
+option go_package = ".;comm";
+
+message Command {
+    string name = 1;
+    string arg = 2;
+}
+
+service Comm {
+    rpc OpenComm(Command) returns (Command) {}
+}

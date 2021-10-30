@@ -1,4 +1,14 @@
-package grpc_server
+package backbone
+
+//"google.golang.org/grpc"
+
+//"github.com/golang/protobuf/proto"
+
+//"github.com/ausrasul/backbone/comm"
+
+import (
+	pb "github.com/ausrasul/backbone/comm"
+)
 
 type Server struct {
 	ip           string
@@ -18,3 +28,18 @@ func (s *Server) SetOnConnect(onConnectCallback func(string)) {
 func (s *Server) SetOnDisconnect(onDisconnectCallback func(string)) {
 	s.onDisconnect = onDisconnectCallback
 }
+
+func (s *Server) OpenComm(c *pb.Command) error {
+	return nil
+}
+
+/* everytime we get a new client:
+- create a client object
+    - the id is random string
+    - create input channel
+        - every time input channel got entry:
+            - send command to client.
+- run onConnect (hopefully someone will add handlers)
+- add handlers (if called) to teh client
+- when receive command from client parse and call handler.
+*/
