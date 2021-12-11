@@ -7,6 +7,8 @@ package backbone
 //"github.com/ausrasul/backbone/comm"
 
 import (
+	"log"
+
 	pb "github.com/ausrasul/backbone/comm"
 )
 
@@ -30,6 +32,7 @@ func (s *Server) SetOnDisconnect(onDisconnectCallback func(string)) {
 }
 
 func (s *Server) OpenComm(c *pb.Command) error {
+	log.Println("hhhhhhhhhh")
 	return nil
 }
 

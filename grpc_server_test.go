@@ -18,9 +18,16 @@
 package backbone
 
 import (
+	"log"
 	"testing"
 
+	"context"
+	"net"
+
+	pb "github.com/ausrasul/backbone/comm"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/test/bufconn"
 )
 
 func TestInstantiate(t *testing.T) {
@@ -78,6 +85,77 @@ func TestOnDisconnectCallback(t *testing.T) {
 		Server.onDisconnect(data.input)
 		assert.Equal(t, varToBeChangedByCallBack, data.expected, "Bad onconnect callback")
 	}
+}
+
+func dialer() func(context.Context, string) (net.Conn, error) {
+	listener := bufconn.Listen(1024 * 1024)
+
+	server := grpc.NewServer()
+
+	pb.RegisterCommServer(server, &server{})
+
+	go func() {
+		if err := server.Serve(listener); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	return func(context.Context, string) (net.Conn, error) {
+		return listener.Dial()
+	}
+}
+
+func TestDepositServer_Deposit(t *testing.T) {
+	tests := []struct {
+		name        string
+		commandName string
+		commandArg  string
+		res         *pb.Command
+		errMsg      string
+	}{
+		{
+			"command with response",
+			"test one",
+			"test one arg",
+			&pb.Command{
+				name: "test one resp",
+				arg:  "test one resp",
+			},
+			"got wrong resp",
+		},
+		/*{
+			"valid request with non negative amount",
+			0.00,
+			&pb.DepositResponse{Ok: true},
+			codes.OK,
+			"",
+		},*/
+	}
+	ctx := context.Background()
+	conn, err := grpc.DialContext(ctx, "", grpc.WithInsecure(), grpc.WithContextDialer(dialer()))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+	client := pb.NewCommClient(conn)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request := &pb.Command{
+				name: tt.commandName,
+				arg:  tt.commandArg,
+			}
+			response, err := client.OpenComm(ctx, request)
+
+			if response != nil {
+				if response.name != tt.res.name || response.arg != tt.res.arg {
+					t.Error("response: expected", tt.res, "received", response)
+				}
+			}
+
+		})
+	}
+
 }
 
 // Test that it start grpc server.
