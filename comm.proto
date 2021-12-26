@@ -5,8 +5,8 @@ package comm;
 option go_package = ".;comm";
 
 message Command {
-    string name = 1;
-    string arg = 2;
+    string Name = 1;
+    string Arg = 2;
 }
 
 service Comm {

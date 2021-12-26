@@ -7,9 +7,13 @@ package backbone
 //"github.com/ausrasul/backbone/comm"
 
 import (
+	"context"
+	"fmt"
 	"log"
+	"net"
 
-	pb "github.com/ausrasul/backbone/comm"
+	"github.com/ausrasul/backbone/comm"
+	"google.golang.org/grpc"
 )
 
 type Server struct {
@@ -17,6 +21,7 @@ type Server struct {
 	port         int
 	onConnect    func(string)
 	onDisconnect func(string)
+	comm.UnimplementedCommServer
 }
 
 func New(Ip string, port int) Server {
@@ -31,9 +36,25 @@ func (s *Server) SetOnDisconnect(onDisconnectCallback func(string)) {
 	s.onDisconnect = onDisconnectCallback
 }
 
-func (s *Server) OpenComm(c *pb.Command) error {
-	log.Println("hhhhhhhhhh")
+func (s *Server) Start() error {
+	lis, err := net.Listen("tcp", ":"+fmt.Sprint(s.port))
+	if err != nil {
+		return err
+	}
+
+	grpcServer := grpc.NewServer()
+
+	comm.RegisterCommServer(grpcServer, s)
+
+	if err := grpcServer.Serve(lis); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (s *Server) OpenComm(ctx context.Context, c *comm.Command) (*comm.Command, error) {
+	log.Println("hhhhhhhhhh")
+	return &comm.Command{}, nil
 }
 
 /* everytime we get a new client:

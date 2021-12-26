@@ -1,6 +1,6 @@
 package comm
 
 type Command struct {
-	name string
-	arg  string
+	Name string
+	Arg  string
 }

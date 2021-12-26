@@ -1,4 +1,24 @@
 /*
+	Background:
+	we need a package that establishes grpc server,
+	we should be able to:
+	API- instanciate it with ip and port
+	API- assign connect/disconnect handlers
+	API- tell it to start.
+
+	the reason we have to tell it to start, is to give us time to
+	load on connect/disconnect handlers.
+
+	after it starts, it:
+	- allow grpc clients to automatically connect to it.
+	API- allow me to query how many clients are connected to it
+	API- allow me to assign command handlers to individual clients.
+
+	so that clients data can be handled by my code.
+	should the server be able to shutdown? no.
+	should it handle errors? yes!
+
+
 	the following behaviours are needed:
 	- instantiate with config
 	- assign callbacks
@@ -18,13 +38,13 @@
 package backbone
 
 import (
+	"context"
+	"fmt"
 	"log"
+	"net"
 	"testing"
 
-	"context"
-	"net"
-
-	pb "github.com/ausrasul/backbone/comm"
+	"github.com/ausrasul/backbone/comm"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
@@ -87,75 +107,78 @@ func TestOnDisconnectCallback(t *testing.T) {
 	}
 }
 
-func dialer() func(context.Context, string) (net.Conn, error) {
-	listener := bufconn.Listen(1024 * 1024)
+/*func TestStart(t *testing.T) {
+	server := New("localhost", 1234)
+	assert.Equal(t, server.Start(), nil, "Grpc didn't start")
 
-	server := grpc.NewServer()
+}
+*/
 
-	pb.RegisterCommServer(server, &server{})
+func dialer(s *Server) func(context.Context, string) (net.Conn, error) {
+	lis := bufconn.Listen(1024 * 1024)
+
+	grpcServer := grpc.NewServer()
+
+	comm.RegisterCommServer(grpcServer, s)
+	//pb.RegisterDepositServiceServer(server, &DepositServer{})
+
+	grpcServer.Serve(lis)
 
 	go func() {
-		if err := server.Serve(listener); err != nil {
+		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatal(err)
 		}
 	}()
 
 	return func(context.Context, string) (net.Conn, error) {
-		return listener.Dial()
+		return lis.Dial()
 	}
 }
 
-func TestDepositServer_Deposit(t *testing.T) {
+func TestCommServer_Deposit(t *testing.T) {
 	tests := []struct {
-		name        string
-		commandName string
-		commandArg  string
-		res         *pb.Command
-		errMsg      string
+		name    string
+		cmdName string
+		cmdArg  string
+		res     *comm.Command
+		errMsg  string
 	}{
 		{
-			"command with response",
-			"test one",
-			"test one arg",
-			&pb.Command{
-				name: "test one resp",
-				arg:  "test one resp",
-			},
-			"got wrong resp",
+			"Command",
+			"testCmd",
+			"testArg",
+			&comm.Command{},
+			fmt.Sprintf("cannot deposit %v", -1.11),
 		},
-		/*{
-			"valid request with non negative amount",
-			0.00,
-			&pb.DepositResponse{Ok: true},
-			codes.OK,
-			"",
-		},*/
 	}
+	s := New("localhost", 1234)
 	ctx := context.Background()
-	conn, err := grpc.DialContext(ctx, "", grpc.WithInsecure(), grpc.WithContextDialer(dialer()))
+
+	conn, err := grpc.DialContext(ctx, "", grpc.WithInsecure(), grpc.WithContextDialer(dialer(&s)))
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer conn.Close()
-	client := pb.NewCommClient(conn)
+
+	client := comm.NewCommClient(conn)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request := &pb.Command{
-				name: tt.commandName,
-				arg:  tt.commandArg,
-			}
+			request := &comm.Command{Name: tt.cmdName, Arg: tt.cmdArg}
+
 			response, err := client.OpenComm(ctx, request)
 
 			if response != nil {
-				if response.name != tt.res.name || response.arg != tt.res.arg {
-					t.Error("response: expected", tt.res, "received", response)
+				if response.Name != tt.res.Name {
+					t.Error("response: expected", tt.res.Name, "received", response.Name)
 				}
 			}
 
+			if err != nil {
+				t.Error("unknown err", err)
+			}
 		})
 	}
-
 }
 
 // Test that it start grpc server.
