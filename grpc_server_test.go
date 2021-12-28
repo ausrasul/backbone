@@ -121,14 +121,17 @@ func dialer(s *Server) func(context.Context, string) (net.Conn, error) {
 
 	comm.RegisterCommServer(grpcServer, s)
 	//pb.RegisterDepositServiceServer(server, &DepositServer{})
+	//log.Print("asdf")
 
-	grpcServer.Serve(lis)
+	//grpcServer.Serve(lis)
+	log.Print("asdf")
 
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatal(err)
 		}
 	}()
+	log.Print("asdf")
 
 	return func(context.Context, string) (net.Conn, error) {
 		return lis.Dial()
@@ -151,17 +154,20 @@ func TestCommServer_Deposit(t *testing.T) {
 			fmt.Sprintf("cannot deposit %v", -1.11),
 		},
 	}
-	s := New("localhost", 1234)
+	s := New("127.0.0.1", 1234)
 	ctx := context.Background()
+	log.Print("asdf1")
+	dialer_ := dialer(&s)
+	log.Print("asdf1")
 
-	conn, err := grpc.DialContext(ctx, "", grpc.WithInsecure(), grpc.WithContextDialer(dialer(&s)))
+	conn, err := grpc.DialContext(ctx, ":1234", grpc.WithInsecure(), grpc.WithContextDialer(dialer_))
+	log.Print("asdf2")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer conn.Close()
 
 	client := comm.NewCommClient(conn)
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			request := &comm.Command{Name: tt.cmdName, Arg: tt.cmdArg}

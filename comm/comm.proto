@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package comm;
 
-option go_package = ".;comm";
+option go_package = "../comm";
 
 message Command {
-    string Name = 1;
-    string Arg = 2;
+    string name = 1;
+    string arg = 2;
 }
 
 service Comm {
