@@ -10,5 +10,5 @@ message Command {
 }
 
 service Comm {
-    rpc OpenComm(Command) returns (Command) {}
+    rpc OpenComm(stream Command) returns (stream Command) {}
 }

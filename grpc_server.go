@@ -7,9 +7,8 @@ package backbone
 //"github.com/ausrasul/backbone/comm"
 
 import (
-	"context"
 	"fmt"
-	"log"
+	"io"
 	"net"
 
 	"github.com/ausrasul/backbone/comm"
@@ -52,9 +51,19 @@ func (s *Server) Start() error {
 	return nil
 }
 
-func (s *Server) OpenComm(ctx context.Context, c *comm.Command) (*comm.Command, error) {
-	log.Println("hhhhhhhhhh")
-	return &comm.Command{}, nil
+func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
+	for {
+		in, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if in.Name == "id" {
+			s.onConnect(in.Arg)
+		}
+	}
 }
 
 /* everytime we get a new client:

@@ -18,7 +18,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CommClient interface {
-	OpenComm(ctx context.Context, in *Command, opts ...grpc.CallOption) (*Command, error)
+	OpenComm(ctx context.Context, opts ...grpc.CallOption) (Comm_OpenCommClient, error)
 }
 
 type commClient struct {
@@ -29,20 +29,42 @@ func NewCommClient(cc grpc.ClientConnInterface) CommClient {
 	return &commClient{cc}
 }
 
-func (c *commClient) OpenComm(ctx context.Context, in *Command, opts ...grpc.CallOption) (*Command, error) {
-	out := new(Command)
-	err := c.cc.Invoke(ctx, "/comm.Comm/OpenComm", in, out, opts...)
+func (c *commClient) OpenComm(ctx context.Context, opts ...grpc.CallOption) (Comm_OpenCommClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Comm_ServiceDesc.Streams[0], "/comm.Comm/OpenComm", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &commOpenCommClient{stream}
+	return x, nil
+}
+
+type Comm_OpenCommClient interface {
+	Send(*Command) error
+	Recv() (*Command, error)
+	grpc.ClientStream
+}
+
+type commOpenCommClient struct {
+	grpc.ClientStream
+}
+
+func (x *commOpenCommClient) Send(m *Command) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *commOpenCommClient) Recv() (*Command, error) {
+	m := new(Command)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // CommServer is the server API for Comm service.
 // All implementations must embed UnimplementedCommServer
 // for forward compatibility
 type CommServer interface {
-	OpenComm(context.Context, *Command) (*Command, error)
+	OpenComm(Comm_OpenCommServer) error
 	mustEmbedUnimplementedCommServer()
 }
 
@@ -50,8 +72,8 @@ type CommServer interface {
 type UnimplementedCommServer struct {
 }
 
-func (UnimplementedCommServer) OpenComm(context.Context, *Command) (*Command, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method OpenComm not implemented")
+func (UnimplementedCommServer) OpenComm(Comm_OpenCommServer) error {
+	return status.Errorf(codes.Unimplemented, "method OpenComm not implemented")
 }
 func (UnimplementedCommServer) mustEmbedUnimplementedCommServer() {}
 
@@ -66,22 +88,30 @@ func RegisterCommServer(s grpc.ServiceRegistrar, srv CommServer) {
 	s.RegisterService(&Comm_ServiceDesc, srv)
 }
 
-func _Comm_OpenComm_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Command)
-	if err := dec(in); err != nil {
+func _Comm_OpenComm_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(CommServer).OpenComm(&commOpenCommServer{stream})
+}
+
+type Comm_OpenCommServer interface {
+	Send(*Command) error
+	Recv() (*Command, error)
+	grpc.ServerStream
+}
+
+type commOpenCommServer struct {
+	grpc.ServerStream
+}
+
+func (x *commOpenCommServer) Send(m *Command) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *commOpenCommServer) Recv() (*Command, error) {
+	m := new(Command)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
-		return srv.(CommServer).OpenComm(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/comm.Comm/OpenComm",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CommServer).OpenComm(ctx, req.(*Command))
-	}
-	return interceptor(ctx, in, info, handler)
+	return m, nil
 }
 
 // Comm_ServiceDesc is the grpc.ServiceDesc for Comm service.
@@ -90,12 +120,14 @@ func _Comm_OpenComm_Handler(srv interface{}, ctx context.Context, dec func(inter
 var Comm_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "comm.Comm",
 	HandlerType: (*CommServer)(nil),
-	Methods: []grpc.MethodDesc{
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
 		{
-			MethodName: "OpenComm",
-			Handler:    _Comm_OpenComm_Handler,
+			StreamName:    "OpenComm",
+			Handler:       _Comm_OpenComm_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "comm.proto",
 }
