@@ -2,22 +2,31 @@
 	Background:
 	we need a package that establishes grpc server,
 	we should be able to:
-	API- instanciate it with ip and port
-	API- assign connect/disconnect handlers
-	API- tell it to start.
+	DONE API- instanciate it with ip and port
+	DONE API- assign connect/disconnect handlers
+	DONE API- tell it to start.
 
 	the reason we have to tell it to start, is to give us time to
 	load on connect/disconnect handlers.
 
 	after it starts, it:
-	- allow grpc clients to automatically connect to it.
+	DONE - allow grpc clients to automatically connect to it.
+	- remember all connected clients.
+	- delete disconnected clients.
+	- handle race condition when sending command to a disconnected client.
 	API- allow me to query how many clients are connected to it
 	API- allow me to assign command handlers to individual clients.
+	API- allow me to send commands to different clients.
+
 
 	so that clients data can be handled by my code.
 	should the server be able to shutdown? no.
 	should it handle errors? yes!
 
+
+	when a client "connects" it actually sends a command, and an input output streams are established.
+	I should learn how they work.
+	I should arrange so that data go in ot the stream while no race condition may happen.
 
 	the following behaviours are needed:
 	- instantiate with config
