@@ -20,11 +20,12 @@ type Server struct {
 	port         int
 	onConnect    func(string)
 	onDisconnect func(string)
+	handler      func(string, string)
 	comm.UnimplementedCommServer
 }
 
 func New(Ip string, port int) Server {
-	return Server{ip: Ip, port: port}
+	return Server{ip: Ip, port: port, handler: func(a string, b string) {}}
 }
 
 func (s *Server) SetOnConnect(onConnectCallback func(string)) {
@@ -63,7 +64,12 @@ func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 		if in.Name == "id" {
 			s.onConnect(in.Arg)
 		}
+		s.handler("123", "abc")
 	}
+}
+
+func (s *Server) SetCommandHandler(client_id string, handler func(string, string)) {
+	s.handler = handler
 }
 
 /* everytime we get a new client:

@@ -177,9 +177,93 @@ func TestClientConnect(t *testing.T) {
 	}
 
 }
+func TestSetCommandHandlers(t *testing.T) {
+	/*what exactly is the behavior I want to test?
+	I want to add a handler, but that don't need to be tested.
+	it will not return anything. so it is not a behavior.
+	instead, after I add handlers, I should test if the correct client uses them.
+	so we
+	- connect on client, without handler,
+	- check if command works.
+	- add a handler,
+	- check if a comand works.
+
+	- then add another client,
+	- run same command it should not work,
+	- add handler it should work.
+	*/
+
+	ctx := context.Background()
+	s := New("127.0.0.1", 1234)
+	dialer_ := dialer(&s)
+	conn, err := grpc.DialContext(ctx, ":1234", grpc.WithInsecure(), grpc.WithContextDialer(dialer_))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	//handler1 := func(client_id string, arg string) {}
+	//handler2 := func(client_id string, arg string) {}
+	wait_connect := make(chan struct{})
+	s.SetOnConnect(func(client_id string) {
+		close(wait_connect)
+	})
+	client := comm.NewCommClient(conn)
+	stream, _ := client.OpenComm(ctx)
+	stream.Send(&comm.Command{Name: "id", Arg: "123"})
+	<-wait_connect
+	wait_for_handler1 := make(chan map[string]string)
+	stream.Send(&comm.Command{Name: "cmd1", Arg: "abc"})
+	select {
+	case <-wait_for_handler1:
+		t.Error("handler should not have been called.")
+	case <-time.After(time.Millisecond * 10):
+	}
+
+	handler1 := func(client_id string, arg string) {
+		wait_for_handler1 <- map[string]string{"id": client_id, "arg": arg}
+	}
+
+	s.SetCommandHandler("123", handler1)
+	stream.Send(&comm.Command{Name: "cmd1", Arg: "abc"})
+	select {
+	case res := <-wait_for_handler1:
+		assert.Equal(t, res["id"], "123", "bad id received")
+		assert.Equal(t, res["arg"], "abc", "bad arg received")
+	case <-time.After(time.Millisecond * 10):
+		t.Error("handler should have been called.")
+	}
+
+	// this passed but appearantly it should do more
+
+	// no handler should have been called.
+	// add handler
+	// send again, handler should be called.
+
+	/*stream.Send(&comm.Command{Name: "command1", Arg: tt.cmdArg})
+		handler1
+		s.SetOnConnect(func(client_id string){
+			s.SetCommandHandler()
+		})
+	}*/
+
+	// From here on, must be rewritten.
+
+	/*for _, tt := range tests {
+		stream.Send(&comm.Command{Name: tt.cmdName, Arg: tt.cmdArg})
+		res := ""
+		select {
+		case res = <-recvChan:
+		case <-time.After(time.Millisecond * 10):
+		}
+		assert.Equal(t, tt.expected, res, tt.errMsg)
+
+	}*/
+
+}
 
 func TestClientHandlers(t *testing.T) {
-	tests := []struct {
+	/*tests := []struct {
 		name     string
 		cmdName  string
 		cmdArg   string
@@ -207,13 +291,9 @@ func TestClientHandlers(t *testing.T) {
 			"",
 			"No handler is called",
 		},
-	}
-	s := New("127.0.0.1", 1234)
-	recvChan := make(chan string)
-	// From here on, must be rewritten.
-	s.SetOnConnect(func(str string) { recvChan <- str })
-
+	}*/
 	ctx := context.Background()
+	s := New("127.0.0.1", 1234)
 	dialer_ := dialer(&s)
 	conn, err := grpc.DialContext(ctx, ":1234", grpc.WithInsecure(), grpc.WithContextDialer(dialer_))
 	if err != nil {
@@ -221,11 +301,46 @@ func TestClientHandlers(t *testing.T) {
 	}
 	defer conn.Close()
 
-	client := comm.NewCommClient(conn)
-	stream, err := client.OpenComm(ctx)
-	if err != nil {
-		t.Error("got err", err)
+	recvChan := make(chan struct {
+		src string
+		id  string
+		arg string
+	})
+	handler1 := func(id string, arg string) {
+		recvChan <- struct {
+			src string
+			id  string
+			arg string
+		}{
+			"handler1",
+			id,
+			arg,
+		}
 	}
+	handler2 := func(id string, arg string) {
+		recvChan <- struct {
+			src string
+			id  string
+			arg string
+		}{
+			"handler2",
+			id,
+			arg,
+		}
+	}
+	wait_connect := make(chan struct{})
+	s.SetOnConnect(func(client_id string) {
+		s.SetCommandHandler(client_id, handler1)
+		s.SetCommandHandler(client_id, handler2)
+		close(wait_connect)
+	})
+
+	/*client := comm.NewCommClient(conn)
+	stream, _ := client.OpenComm(ctx)
+	stream.Send(&comm.Command{Name: "id", Arg: "123"})
+
+	// From here on, must be rewritten.
+
 	for _, tt := range tests {
 		stream.Send(&comm.Command{Name: tt.cmdName, Arg: tt.cmdArg})
 		res := ""
@@ -235,7 +350,7 @@ func TestClientHandlers(t *testing.T) {
 		}
 		assert.Equal(t, tt.expected, res, tt.errMsg)
 
-	}
+	}*/
 
 }
 
