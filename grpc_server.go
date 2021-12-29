@@ -16,16 +16,24 @@ import (
 )
 
 type Server struct {
-	ip           string
-	port         int
-	onConnect    func(string)
-	onDisconnect func(string)
-	handler      func(string, string)
+	ip                string
+	port              int
+	onConnect         func(string)
+	onDisconnect      func(string)
+	cmd_handlers      map[string]map[string]func(string, string)
+	cmd_handlers_lock chan int
 	comm.UnimplementedCommServer
 }
 
 func New(Ip string, port int) Server {
-	return Server{ip: Ip, port: port, handler: func(a string, b string) {}}
+	s := Server{
+		ip:                Ip,
+		port:              port,
+		cmd_handlers:      make(map[string]map[string]func(string, string)),
+		cmd_handlers_lock: make(chan int, 1),
+	}
+	s.cmd_handlers_lock <- 1
+	return s
 }
 
 func (s *Server) SetOnConnect(onConnectCallback func(string)) {
@@ -53,6 +61,7 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
+	client_id := ""
 	for {
 		in, err := stream.Recv()
 		if err == io.EOF {
@@ -62,23 +71,35 @@ func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 			return err
 		}
 		if in.Name == "id" {
+			client_id = in.Arg
 			s.onConnect(in.Arg)
 		}
-		s.handler("123", "abc")
+		handler, ok := s.getClientCmdHandler(client_id, in.Name)
+		if !ok {
+			continue
+		}
+		handler(client_id, in.Arg)
 	}
 }
 
-func (s *Server) SetCommandHandler(client_id string, handler func(string, string)) {
-	s.handler = handler
+func (s *Server) SetCommandHandler(client_id string, cmd_name string, handler func(string, string)) {
+	<-s.cmd_handlers_lock
+	_, ok := s.cmd_handlers[client_id]
+	if !ok {
+		s.cmd_handlers[client_id] = make(map[string]func(string, string))
+	}
+	s.cmd_handlers[client_id][cmd_name] = handler
+	s.cmd_handlers_lock <- 1
 }
 
-/* everytime we get a new client:
-- create a client object
-    - the id is random string
-    - create input channel
-        - every time input channel got entry:
-            - send command to client.
-- run onConnect (hopefully someone will add handlers)
-- add handlers (if called) to teh client
-- when receive command from client parse and call handler.
-*/
+func (s *Server) getClientCmdHandler(client_id string, cmd_name string) (func(string, string), bool) {
+	<-s.cmd_handlers_lock
+	handlers, ok := s.cmd_handlers[client_id]
+	if !ok {
+		s.cmd_handlers_lock <- 1
+		return nil, false
+	}
+	handler, ok := handlers[cmd_name]
+	s.cmd_handlers_lock <- 1
+	return handler, ok
+}

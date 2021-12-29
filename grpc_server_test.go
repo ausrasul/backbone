@@ -11,14 +11,14 @@
 	DONE after it starts, it:
 	DONE - allow grpc clients to automatically connect to it.
 	DONE - when client sends id, it calls onconnect with id.
-	API- the server allow me to set handlers per client id
-	GRPC- when client sends other commands, it calls the appropriate handler.
+	DONE API- the server allow me to set handlers per client id
+	DONE GRPC- when client sends other commands, it calls the appropriate handler.
 
-	- remember all connected clients.
-	- delete disconnected clients.
+	- remember all connected clients. should I?
+	- delete disconnected clients' handlers
+	- call onDisconnect when client disconnects.
 	- handle race condition when sending command to a disconnected client.
 	API- allow me to query how many clients are connected to it
-	API- allow me to assign command handlers to individual clients.
 	API- allow me to send commands to different clients.
 
 	so that clients data can be handled by my code.
@@ -27,22 +27,21 @@
 
 
 	when a client "connects" it actually sends a command, and an input output streams are established.
-	I should learn how they work.
 	I should arrange so that data go in ot the stream while no race condition may happen.
 
-	the following behaviours are needed:
-	- instantiate with config
-	- assign callbacks
-		- onconnect(id string)
-		- ondisconnect(id string)
-		- onauth(id string) don't implement it.
+	v the following behaviours are needed:
+	v - instantiate with config
+	v - assign callbacks
+		v - onconnect(id string)
+*		- ondisconnect(id string)
+		x - onauth(id string) don't implement it.
 	- server gives the following methods:
-		- addHandler(id, cmdname, callback)
-		- start()
+		v - addHandler(id, cmdname, callback)
+		v - start()
 
-	- start starts a grpc server.
-	- on each connection start bidirectional stream.
-	- probably use channels.
+	v - start starts a grpc server.
+	v - on each connection start bidirectional stream.
+*	- probably use channels.
 
 */
 
@@ -177,215 +176,121 @@ func TestClientConnect(t *testing.T) {
 	}
 
 }
-func TestSetCommandHandlers(t *testing.T) {
-	/*what exactly is the behavior I want to test?
-	I want to add a handler, but that don't need to be tested.
-	it will not return anything. so it is not a behavior.
-	instead, after I add handlers, I should test if the correct client uses them.
-	so we
-	- connect on client, without handler,
-	- check if command works.
-	- add a handler,
-	- check if a comand works.
-
-	- then add another client,
-	- run same command it should not work,
-	- add handler it should work.
-	*/
-
-	ctx := context.Background()
-	s := New("127.0.0.1", 1234)
-	dialer_ := dialer(&s)
-	conn, err := grpc.DialContext(ctx, ":1234", grpc.WithInsecure(), grpc.WithContextDialer(dialer_))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer conn.Close()
-
-	//handler1 := func(client_id string, arg string) {}
-	//handler2 := func(client_id string, arg string) {}
-	wait_connect := make(chan struct{})
-	s.SetOnConnect(func(client_id string) {
-		close(wait_connect)
-	})
-	client := comm.NewCommClient(conn)
-	stream, _ := client.OpenComm(ctx)
-	stream.Send(&comm.Command{Name: "id", Arg: "123"})
-	<-wait_connect
+func TestSetCommandHandler(t *testing.T) {
+	s, conn := start_grpc()
+	stream := connect_grpc(s, conn, "client1")
 	wait_for_handler1 := make(chan map[string]string)
-	stream.Send(&comm.Command{Name: "cmd1", Arg: "abc"})
-	select {
-	case <-wait_for_handler1:
-		t.Error("handler should not have been called.")
-	case <-time.After(time.Millisecond * 10):
-	}
+	wait_for_handler2 := make(chan map[string]string)
 
 	handler1 := func(client_id string, arg string) {
 		wait_for_handler1 <- map[string]string{"id": client_id, "arg": arg}
 	}
 
-	s.SetCommandHandler("123", handler1)
+	handler2 := func(client_id string, arg string) {
+		wait_for_handler2 <- map[string]string{"id": client_id, "arg": arg}
+	}
+
+	s.SetCommandHandler("client1", "cmd1", handler1)
 	stream.Send(&comm.Command{Name: "cmd1", Arg: "abc"})
 	select {
-	case res := <-wait_for_handler1:
-		assert.Equal(t, res["id"], "123", "bad id received")
-		assert.Equal(t, res["arg"], "abc", "bad arg received")
+	case <-wait_for_handler1:
+	case <-wait_for_handler2:
+		t.Error("handler1 should be called.")
 	case <-time.After(time.Millisecond * 10):
-		t.Error("handler should have been called.")
+		t.Error("handler1 should be called.")
 	}
 
-	// this passed but appearantly it should do more
+	stream.Send(&comm.Command{Name: "cmd2", Arg: "abc"})
+	select {
+	case <-wait_for_handler1:
+		t.Error("no handler should be called")
+	case <-wait_for_handler2:
+		t.Error("no handler should be called")
+	case <-time.After(time.Millisecond * 10):
+	}
 
-	// no handler should have been called.
-	// add handler
-	// send again, handler should be called.
+	s.SetCommandHandler("client1", "cmd2", handler2)
+	stream.Send(&comm.Command{Name: "cmd2", Arg: "abc"})
+	select {
+	case <-wait_for_handler1:
+		t.Error("handler2 should be called")
+	case <-wait_for_handler2:
+	case <-time.After(time.Millisecond * 10):
+		t.Error("handler2 should be called")
+	}
 
-	/*stream.Send(&comm.Command{Name: "command1", Arg: tt.cmdArg})
-		handler1
-		s.SetOnConnect(func(client_id string){
-			s.SetCommandHandler()
-		})
-	}*/
+	client2stream := connect_grpc(s, conn, "client2")
+	client2stream.Send(&comm.Command{Name: "cmd2", Arg: "abc"})
+	select {
+	case <-wait_for_handler1:
+		t.Error("no handler should be called")
+	case <-wait_for_handler2:
+		t.Error("no handler should be called")
+	case <-time.After(time.Millisecond * 10):
+	}
 
-	// From here on, must be rewritten.
-
-	/*for _, tt := range tests {
-		stream.Send(&comm.Command{Name: tt.cmdName, Arg: tt.cmdArg})
-		res := ""
-		select {
-		case res = <-recvChan:
-		case <-time.After(time.Millisecond * 10):
-		}
-		assert.Equal(t, tt.expected, res, tt.errMsg)
-
-	}*/
-
+	s.SetCommandHandler("client2", "cmd2", handler2)
+	client2stream.Send(&comm.Command{Name: "cmd2", Arg: "abc"})
+	select {
+	case <-wait_for_handler1:
+		t.Error("handler2 should be called")
+	case <-wait_for_handler2:
+	case <-time.After(time.Millisecond * 10):
+		t.Error("handler2 should be called")
+	}
 }
 
-func TestClientHandlers(t *testing.T) {
-	/*tests := []struct {
-		name     string
-		cmdName  string
-		cmdArg   string
-		expected string
-		errMsg   string
+func TestCallCommandHandler(t *testing.T) {
+	s, conn := start_grpc()
+	wait_for_handler := make(chan map[string]string)
+
+	handler := func(client_id string, arg string) {
+		wait_for_handler <- map[string]string{"id": client_id, "arg": arg}
+	}
+	tests := []struct {
+		name         string
+		handler_cmd  string
+		handler_func func(string, string)
+		client_id    string
+		cmd_name     string
+		cmd_arg      string
 	}{
 		{
-			"Existing handler",
-			"handle_this",
-			"1234",
-			"",
-			"Existing handler was not called",
+			"Valid handler test 1",
+			"cmd1",
+			handler,
+			"client1",
+			"cmd1",
+			"ape",
 		},
 		{
-			"Existing handler 2",
-			"handle_this_too",
-			"12345",
-			"",
-			"Existing handler was not called",
+			"Valid handler test 2",
+			"cmd1",
+			handler,
+			"client1",
+			"cmd1",
+			"dog",
 		},
 		{
-			"Non existing handler",
-			"unkown_command",
-			"123",
-			"",
-			"No handler is called",
+			"Valid handler test 3",
+			"cmd2",
+			handler,
+			"client2",
+			"cmd2",
+			"dog",
 		},
-	}*/
-	ctx := context.Background()
-	s := New("127.0.0.1", 1234)
-	dialer_ := dialer(&s)
-	conn, err := grpc.DialContext(ctx, ":1234", grpc.WithInsecure(), grpc.WithContextDialer(dialer_))
-	if err != nil {
-		log.Fatal(err)
 	}
-	defer conn.Close()
-
-	recvChan := make(chan struct {
-		src string
-		id  string
-		arg string
-	})
-	handler1 := func(id string, arg string) {
-		recvChan <- struct {
-			src string
-			id  string
-			arg string
-		}{
-			"handler1",
-			id,
-			arg,
-		}
-	}
-	handler2 := func(id string, arg string) {
-		recvChan <- struct {
-			src string
-			id  string
-			arg string
-		}{
-			"handler2",
-			id,
-			arg,
-		}
-	}
-	wait_connect := make(chan struct{})
-	s.SetOnConnect(func(client_id string) {
-		s.SetCommandHandler(client_id, handler1)
-		s.SetCommandHandler(client_id, handler2)
-		close(wait_connect)
-	})
-
-	/*client := comm.NewCommClient(conn)
-	stream, _ := client.OpenComm(ctx)
-	stream.Send(&comm.Command{Name: "id", Arg: "123"})
-
-	// From here on, must be rewritten.
 
 	for _, tt := range tests {
-		stream.Send(&comm.Command{Name: tt.cmdName, Arg: tt.cmdArg})
-		res := ""
-		select {
-		case res = <-recvChan:
-		case <-time.After(time.Millisecond * 10):
-		}
-		assert.Equal(t, tt.expected, res, tt.errMsg)
-
-	}*/
-
+		stream := connect_grpc(s, conn, tt.client_id)
+		s.SetCommandHandler(tt.client_id, tt.handler_cmd, tt.handler_func)
+		stream.Send(&comm.Command{Name: tt.cmd_name, Arg: tt.cmd_arg})
+		res := <-wait_for_handler
+		assert.Equal(t, res["id"], tt.client_id, tt.name+", handler should get client id")
+		assert.Equal(t, res["arg"], tt.cmd_arg, tt.name+", handler should get cmd arg")
+	}
 }
 
-// Test that it start grpc server.
-
-// test that it creates a client one a client connects?
-// test that it creates dual channel?
-// not decided how this should work...
-
-/*func TestAddHandler(t *testing.T){
-	//varToBeChangedByCallBack := ""
-	testData := []struct {
-		function func(string)
-		input    string
-		expected string
-	}{
-		{
-			input:    "monkey",
-			function: func(input string) { varToBeChangedByCallBack = "monkey" },
-			expected: "monkey",
-		},
-	}
-	Server := New("localhost", 1234)
-	for _, data := range testData {
-		Server.AddHandler(data.clientId, data.command, data.callback)
-		// what to expect?
-		// every time a client receives a command that matches this one,
-		// call this callback.
-		// 1 - fake connect a client.
-		// 2- fake receive a command.
-		Server.onDisconnect(data.input)
-		assert.Equal(t, varToBeChangedByCallBack, data.expected, "Bad onconnect callback")
-	}
-
-}*/
 func dialer(s *Server) func(context.Context, string) (net.Conn, error) {
 	lis := bufconn.Listen(1024 * 1024)
 
@@ -402,4 +307,27 @@ func dialer(s *Server) func(context.Context, string) (net.Conn, error) {
 	return func(context.Context, string) (net.Conn, error) {
 		return lis.Dial()
 	}
+}
+
+func start_grpc() (*Server, *grpc.ClientConn) {
+	ctx := context.Background()
+	s := New("127.0.0.1", 1234)
+	dialer_ := dialer(&s)
+	conn, err := grpc.DialContext(ctx, ":1234", grpc.WithInsecure(), grpc.WithContextDialer(dialer_))
+	if err != nil {
+		log.Fatal(err)
+	}
+	return &s, conn
+}
+
+func connect_grpc(s *Server, conn *grpc.ClientConn, id string) comm.Comm_OpenCommClient {
+	wait_connect := make(chan struct{})
+	s.SetOnConnect(func(client_id string) {
+		close(wait_connect)
+	})
+	client := comm.NewCommClient(conn)
+	stream, _ := client.OpenComm(context.Background())
+	stream.Send(&comm.Command{Name: "id", Arg: id})
+	<-wait_connect
+	return stream
 }
