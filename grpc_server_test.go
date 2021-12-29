@@ -14,9 +14,9 @@
 	DONE API- the server allow me to set handlers per client id
 	DONE GRPC- when client sends other commands, it calls the appropriate handler.
 
-	- remember all connected clients. should I?
+	DONE - call onDisconnect when client disconnects.
 	- delete disconnected clients' handlers
-	- call onDisconnect when client disconnects.
+	- remember all connected clients. should I?
 	- handle race condition when sending command to a disconnected client.
 	API- allow me to query how many clients are connected to it
 	API- allow me to send commands to different clients.
@@ -96,7 +96,7 @@ func TestOnConnectCallback(t *testing.T) {
 	}
 }
 
-func TestOnDisconnectCallback(t *testing.T) {
+func TestSetOnDisconnectCallback(t *testing.T) {
 	varToBeChangedByCallBack := ""
 	testData := []struct {
 		function func(string)
@@ -176,68 +176,56 @@ func TestClientConnect(t *testing.T) {
 	}
 
 }
-func TestSetCommandHandler(t *testing.T) {
+func TestOnDisconnect(t *testing.T) {
 	s, conn := start_grpc()
-	stream := connect_grpc(s, conn, "client1")
-	wait_for_handler1 := make(chan map[string]string)
-	wait_for_handler2 := make(chan map[string]string)
 
-	handler1 := func(client_id string, arg string) {
-		wait_for_handler1 <- map[string]string{"id": client_id, "arg": arg}
+	tests := []struct {
+		name            string
+		client_id       string
+		will_disconnect bool
+		err_msg         string
+	}{
+		{
+			"client don't disconnects",
+			"client1",
+			false,
+			"onDisconnect should not be called before client disconnect",
+		},
+		{
+			"client disconnects",
+			"client1",
+			true,
+			"onDisconnect should be called.",
+		},
+		{
+			"client disconnects",
+			"client2",
+			true,
+			"onDisconnect should be called.",
+		},
+	}
+	for _, tt := range tests {
+		stream := connect_grpc(s, conn, tt.client_id)
+		disconnected := make(chan string)
+		s.SetOnDisconnect(func(client_id string) { disconnected <- client_id })
+
+		if tt.will_disconnect {
+			stream.CloseSend()
+		}
+		select {
+		case res := <-disconnected:
+			if !tt.will_disconnect {
+				t.Error(tt.name + ", " + tt.err_msg)
+			} else {
+				assert.Equal(t, res, tt.client_id, tt.name+", "+tt.err_msg)
+			}
+		case <-time.After(time.Millisecond * 10):
+			if tt.will_disconnect {
+				t.Error(tt.name + ", " + tt.err_msg)
+			}
+		}
 	}
 
-	handler2 := func(client_id string, arg string) {
-		wait_for_handler2 <- map[string]string{"id": client_id, "arg": arg}
-	}
-
-	s.SetCommandHandler("client1", "cmd1", handler1)
-	stream.Send(&comm.Command{Name: "cmd1", Arg: "abc"})
-	select {
-	case <-wait_for_handler1:
-	case <-wait_for_handler2:
-		t.Error("handler1 should be called.")
-	case <-time.After(time.Millisecond * 10):
-		t.Error("handler1 should be called.")
-	}
-
-	stream.Send(&comm.Command{Name: "cmd2", Arg: "abc"})
-	select {
-	case <-wait_for_handler1:
-		t.Error("no handler should be called")
-	case <-wait_for_handler2:
-		t.Error("no handler should be called")
-	case <-time.After(time.Millisecond * 10):
-	}
-
-	s.SetCommandHandler("client1", "cmd2", handler2)
-	stream.Send(&comm.Command{Name: "cmd2", Arg: "abc"})
-	select {
-	case <-wait_for_handler1:
-		t.Error("handler2 should be called")
-	case <-wait_for_handler2:
-	case <-time.After(time.Millisecond * 10):
-		t.Error("handler2 should be called")
-	}
-
-	client2stream := connect_grpc(s, conn, "client2")
-	client2stream.Send(&comm.Command{Name: "cmd2", Arg: "abc"})
-	select {
-	case <-wait_for_handler1:
-		t.Error("no handler should be called")
-	case <-wait_for_handler2:
-		t.Error("no handler should be called")
-	case <-time.After(time.Millisecond * 10):
-	}
-
-	s.SetCommandHandler("client2", "cmd2", handler2)
-	client2stream.Send(&comm.Command{Name: "cmd2", Arg: "abc"})
-	select {
-	case <-wait_for_handler1:
-		t.Error("handler2 should be called")
-	case <-wait_for_handler2:
-	case <-time.After(time.Millisecond * 10):
-		t.Error("handler2 should be called")
-	}
 }
 
 func TestCallCommandHandler(t *testing.T) {

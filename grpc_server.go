@@ -65,6 +65,7 @@ func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 	for {
 		in, err := stream.Recv()
 		if err == io.EOF {
+			s.onDisconnect(client_id)
 			return nil
 		}
 		if err != nil {
