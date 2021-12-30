@@ -15,11 +15,9 @@
 	DONE GRPC- when client sends other commands, it calls the appropriate handler.
 
 	DONE - call onDisconnect when client disconnects.
-	- delete disconnected clients' handlers
-	- remember all connected clients. should I?
-	- handle race condition when sending command to a disconnected client.
-	API- allow me to query how many clients are connected to it
+	DONE - delete disconnected clients' handlers
 	API- allow me to send commands to different clients.
+	- handle race condition when sending command to a disconnected client.
 
 	so that clients data can be handled by my code.
 	should the server be able to shutdown? no.
@@ -279,6 +277,83 @@ func TestCallCommandHandler(t *testing.T) {
 	}
 }
 
+func TestDeleteCmdHandlerOnDisconnect(t *testing.T) {
+	s, conn := start_grpc()
+	wait_for_handler := make(chan int)
+
+	handler1 := func(client_id string, arg string) {
+		wait_for_handler <- 1
+	}
+	/*handler2 := func(client_id string, arg string) {
+		wait_for_handler <- 2
+	}*/
+
+	tests := []struct {
+		name                string
+		client_id           string
+		should_call_handler bool
+		should_disconnect   bool
+		expected_handler_id int
+		handler_cmd         string
+		handler_func        func(string, string)
+		err_msg             string
+		cmd_name            string
+	}{
+		{
+			"Normal handler",
+			"clientA",
+			true,
+			false,
+			1,
+			"cmdA",
+			handler1,
+			"Handler should be called",
+			"cmdA",
+		},
+		{
+			"Deleted handler",
+			"clientA",
+			false,
+			true,
+			1,
+			"cmdA",
+			handler1,
+			"Handler should not be called",
+			"cmdA",
+		},
+	}
+
+	for _, tt := range tests {
+
+		stream := connect_grpc(s, conn, tt.client_id)
+		doneCh := make(chan string)
+		s.SetOnDisconnect(func(cid string) {
+			doneCh <- cid
+		})
+		s.SetCommandHandler(tt.client_id, tt.handler_cmd, tt.handler_func)
+		if tt.should_disconnect {
+			stream.CloseSend()
+			<-doneCh
+			stream = connect_grpc(s, conn, tt.client_id)
+		}
+
+		stream.Send(&comm.Command{Name: tt.cmd_name, Arg: "test arg"})
+
+		select {
+		case res := <-wait_for_handler:
+			if tt.should_call_handler {
+				assert.Equal(t, res, tt.expected_handler_id, tt.name+", "+tt.err_msg)
+			} else {
+				t.Error(tt.name + ", " + tt.err_msg)
+			}
+		case <-time.After(time.Millisecond * 10):
+			if tt.should_call_handler {
+				t.Error(tt.name + ", " + tt.err_msg)
+			}
+		}
+		close(doneCh)
+	}
+}
 func dialer(s *Server) func(context.Context, string) (net.Conn, error) {
 	lis := bufconn.Listen(1024 * 1024)
 

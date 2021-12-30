@@ -65,7 +65,8 @@ func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 	for {
 		in, err := stream.Recv()
 		if err == io.EOF {
-			s.onDisconnect(client_id)
+			s.deleteClientCmdHandlers(client_id)
+			go s.onDisconnect(client_id)
 			return nil
 		}
 		if err != nil {
@@ -79,10 +80,15 @@ func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 		if !ok {
 			continue
 		}
-		handler(client_id, in.Arg)
+		go handler(client_id, in.Arg)
 	}
 }
 
+func (s *Server) deleteClientCmdHandlers(client_id string) {
+	<-s.cmd_handlers_lock
+	delete(s.cmd_handlers, client_id)
+	s.cmd_handlers_lock <- 1
+}
 func (s *Server) SetCommandHandler(client_id string, cmd_name string, handler func(string, string)) {
 	<-s.cmd_handlers_lock
 	_, ok := s.cmd_handlers[client_id]
