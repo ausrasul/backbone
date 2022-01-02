@@ -19,34 +19,13 @@
 	API- allow me to send commands to different clients.
 	- handle race condition when sending command to a disconnected client.
 
-	so that clients data can be handled by my code.
-	should the server be able to shutdown? no.
-	should it handle errors? yes!
-
-
-	when a client "connects" it actually sends a command, and an input output streams are established.
-	I should arrange so that data go in ot the stream while no race condition may happen.
-
-	v the following behaviours are needed:
-	v - instantiate with config
-	v - assign callbacks
-		v - onconnect(id string)
-*		- ondisconnect(id string)
-		x - onauth(id string) don't implement it.
-	- server gives the following methods:
-		v - addHandler(id, cmdname, callback)
-		v - start()
-
-	v - start starts a grpc server.
-	v - on each connection start bidirectional stream.
-*	- probably use channels.
-
 */
 
 package backbone
 
 import (
 	"context"
+	"io"
 	"log"
 	"net"
 	"testing"
@@ -354,6 +333,46 @@ func TestDeleteCmdHandlerOnDisconnect(t *testing.T) {
 		close(doneCh)
 	}
 }
+
+func TestSendCmdToClient(t *testing.T) {
+	s, conn := start_grpc()
+	stream := connect_grpc(s, conn, "clientA")
+	s.Send("clientA", &comm.Command{Name: "testCommand", Arg: "cmdArg"})
+	in, err := stream.Recv()
+	assert.Equal(t, err, nil, "Should not receive err ")
+	assert.Equal(t, in.Name, "testCommand", "Invalid command name received")
+	assert.Equal(t, in.Arg, "cmdArg", "Invalid command arg received")
+	// should send to different clients.
+	stream2 := connect_grpc(s, conn, "clientB")
+	s.Send("clientB", &comm.Command{Name: "testCommand2", Arg: "cmdArg2"})
+	in, err = stream2.Recv()
+	assert.Equal(t, err, nil, "Should not receive err ")
+	assert.Equal(t, in.Name, "testCommand2", "Invalid command name received")
+	assert.Equal(t, in.Arg, "cmdArg2", "Invalid command arg received")
+
+	// send doesn't work wehn client disconnects.
+	disconnected := make(chan int)
+	s.SetOnDisconnect(func(client_id string) {
+		disconnected <- 1
+	})
+	stream.CloseSend()
+	<-disconnected
+	s.Send("clientA", &comm.Command{Name: "testCommand", Arg: "cmdArg"})
+	_, err = stream.Recv()
+	assert.Equal(t, err, io.EOF, "client should only receive EOF on closure.")
+
+	// send introduced a  race condition
+}
+
+func waitFuncTimeout(f func()) chan int {
+	done := make(chan int)
+	go func() {
+		f()
+		done <- 1
+	}()
+	return done
+}
+
 func dialer(s *Server) func(context.Context, string) (net.Conn, error) {
 	lis := bufconn.Listen(1024 * 1024)
 

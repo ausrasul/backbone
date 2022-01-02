@@ -22,6 +22,7 @@ type Server struct {
 	onDisconnect      func(string)
 	cmd_handlers      map[string]map[string]func(string, string)
 	cmd_handlers_lock chan int
+	clientsOutbox     map[string]chan *comm.Command
 	comm.UnimplementedCommServer
 }
 
@@ -31,6 +32,8 @@ func New(Ip string, port int) Server {
 		port:              port,
 		cmd_handlers:      make(map[string]map[string]func(string, string)),
 		cmd_handlers_lock: make(chan int, 1),
+		clientsOutbox:     make(map[string]chan *comm.Command),
+		onDisconnect:      func(s string) {},
 	}
 	s.cmd_handlers_lock <- 1
 	return s
@@ -60,11 +63,31 @@ func (s *Server) Start() error {
 	return nil
 }
 
+func (s *Server) Send(client_id string, command *comm.Command) error {
+	if outbox, ok := s.clientsOutbox[client_id]; ok {
+		outbox <- command
+	}
+	return nil
+}
+
 func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 	client_id := ""
+	done := make(chan int)
+	go func(done chan int) {
+		for {
+			select {
+			case <-done:
+				return
+			case command := <-s.clientsOutbox[client_id]:
+				stream.Send(command)
+			}
+		}
+	}(done)
 	for {
 		in, err := stream.Recv()
 		if err == io.EOF {
+			done <- 1
+			delete(s.clientsOutbox, client_id)
 			s.deleteClientCmdHandlers(client_id)
 			go s.onDisconnect(client_id)
 			return nil
@@ -74,6 +97,7 @@ func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 		}
 		if in.Name == "id" {
 			client_id = in.Arg
+			s.clientsOutbox[client_id] = make(chan *comm.Command)
 			s.onConnect(in.Arg)
 		}
 		handler, ok := s.getClientCmdHandler(client_id, in.Name)
