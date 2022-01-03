@@ -7,22 +7,26 @@ package backbone
 //"github.com/ausrasul/backbone/comm"
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/ausrasul/backbone/comm"
 	"google.golang.org/grpc"
 )
 
 type Server struct {
-	ip                string
-	port              int
-	onConnect         func(string)
-	onDisconnect      func(string)
-	cmd_handlers      map[string]map[string]func(string, string)
-	cmd_handlers_lock chan int
-	clientsOutbox     map[string]chan *comm.Command
+	ip                   string
+	port                 int
+	onConnect            func(string)
+	onDisconnect         func(string)
+	cmd_handlers         map[string]map[string]func(string, string)
+	cmd_handlers_lock    chan int
+	clientsOutbox        map[string]chan *comm.Command
+	clientsOutboxRWMutex sync.RWMutex
+	//clientsOutboxMgr  chan map[string]interface{}
 	comm.UnimplementedCommServer
 }
 
@@ -34,6 +38,7 @@ func New(Ip string, port int) Server {
 		cmd_handlers_lock: make(chan int, 1),
 		clientsOutbox:     make(map[string]chan *comm.Command),
 		onDisconnect:      func(s string) {},
+		//clientsOutboxMgr:  make(chan map[string]interface{}),
 	}
 	s.cmd_handlers_lock <- 1
 	return s
@@ -64,7 +69,11 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Send(client_id string, command *comm.Command) error {
-	if outbox, ok := s.clientsOutbox[client_id]; ok {
+	s.clientsOutboxRWMutex.RLock()
+	outbox, ok := s.clientsOutbox[client_id]
+	s.clientsOutboxRWMutex.RUnlock()
+
+	if ok {
 		outbox <- command
 	}
 	return nil
@@ -73,21 +82,15 @@ func (s *Server) Send(client_id string, command *comm.Command) error {
 func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 	client_id := ""
 	done := make(chan int)
-	go func(done chan int) {
-		for {
-			select {
-			case <-done:
-				return
-			case command := <-s.clientsOutbox[client_id]:
-				stream.Send(command)
-			}
-		}
-	}(done)
+
 	for {
 		in, err := stream.Recv()
 		if err == io.EOF {
 			done <- 1
+			s.clientsOutboxRWMutex.Lock()
 			delete(s.clientsOutbox, client_id)
+			s.clientsOutboxRWMutex.Unlock()
+
 			s.deleteClientCmdHandlers(client_id)
 			go s.onDisconnect(client_id)
 			return nil
@@ -95,9 +98,31 @@ func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 		if err != nil {
 			return err
 		}
-		if in.Name == "id" {
+		if in.Name == "id" && client_id == "" {
 			client_id = in.Arg
+			s.clientsOutboxRWMutex.RLock()
+			_, ok := s.clientsOutbox[client_id]
+			s.clientsOutboxRWMutex.RUnlock()
+
+			if ok {
+				return errors.New("client id already exist")
+			}
+			s.clientsOutboxRWMutex.Lock()
 			s.clientsOutbox[client_id] = make(chan *comm.Command)
+			outboxCh := s.clientsOutbox[client_id]
+			s.clientsOutboxRWMutex.Unlock()
+
+			go func() {
+
+				for {
+					select {
+					case <-done:
+						return
+					case command := <-outboxCh:
+						stream.Send(command)
+					}
+				}
+			}()
 			s.onConnect(in.Arg)
 		}
 		handler, ok := s.getClientCmdHandler(client_id, in.Name)
@@ -134,3 +159,19 @@ func (s *Server) getClientCmdHandler(client_id string, cmd_name string) (func(st
 	s.cmd_handlers_lock <- 1
 	return handler, ok
 }
+
+/*func (s *Server) clientsOutboxMgrSvr(){
+	for command := range s.clientsOutboxMgr{
+		cmd_name := command["name"]
+		cmd_arg := command["arg"]
+		switch{
+		case cmd_name == "delete":
+			delete(s.clientsOutbox, cmd_arg.(string))
+		case cmd_name == "create":
+			s.clientsOutbox[cmd_arg.(string)] = make(chan *comm.Command)
+		case cmd_name == "get":
+			ch, ok := s.clientsOutbox[cmd_arg]
+		}
+	}
+
+}*/

@@ -117,6 +117,13 @@ func TestClientConnect(t *testing.T) {
 			"Id was not received",
 		},
 		{
+			"Duplicate id",
+			"id",
+			"12345",
+			"",
+			"Duplicate Id, should not call on connect",
+		},
+		{
 			"Not id",
 			"not_id",
 			"123",
@@ -136,12 +143,9 @@ func TestClientConnect(t *testing.T) {
 	}
 	defer conn.Close()
 
-	client := comm.NewCommClient(conn)
-	stream, err := client.OpenComm(ctx)
-	if err != nil {
-		t.Error("got err", err)
-	}
 	for _, tt := range tests {
+		client := comm.NewCommClient(conn)
+		stream, _ := client.OpenComm(ctx)
 		stream.Send(&comm.Command{Name: tt.cmdName, Arg: tt.cmdArg})
 		res := ""
 		select {
@@ -170,15 +174,15 @@ func TestOnDisconnect(t *testing.T) {
 		},
 		{
 			"client disconnects",
-			"client1",
+			"client2",
 			true,
 			"onDisconnect should be called.",
 		},
 		{
 			"client disconnects",
 			"client2",
-			true,
-			"onDisconnect should be called.",
+			false,
+			"onDisconnect should not be called before client disconnect",
 		},
 	}
 	for _, tt := range tests {
@@ -245,9 +249,13 @@ func TestCallCommandHandler(t *testing.T) {
 			"dog",
 		},
 	}
-
+	var stream comm.Comm_OpenCommClient
+	prev_client_id := ""
 	for _, tt := range tests {
-		stream := connect_grpc(s, conn, tt.client_id)
+		if prev_client_id != tt.client_id {
+			prev_client_id = tt.client_id
+			stream = connect_grpc(s, conn, tt.client_id)
+		}
 		s.SetCommandHandler(tt.client_id, tt.handler_cmd, tt.handler_func)
 		stream.Send(&comm.Command{Name: tt.cmd_name, Arg: tt.cmd_arg})
 		res := <-wait_for_handler
@@ -301,10 +309,8 @@ func TestDeleteCmdHandlerOnDisconnect(t *testing.T) {
 			"cmdA",
 		},
 	}
-
+	stream := connect_grpc(s, conn, tests[0].client_id)
 	for _, tt := range tests {
-
-		stream := connect_grpc(s, conn, tt.client_id)
 		doneCh := make(chan string)
 		s.SetOnDisconnect(func(cid string) {
 			doneCh <- cid
