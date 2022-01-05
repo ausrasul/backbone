@@ -136,7 +136,7 @@ func TestClientConnect(t *testing.T) {
 	s.SetOnConnect(func(str string) { recvChan <- str })
 
 	ctx := context.Background()
-	dialer_ := dialer(&s)
+	dialer_ := dialer(s)
 	conn, err := grpc.DialContext(ctx, ":1234", grpc.WithInsecure(), grpc.WithContextDialer(dialer_))
 	if err != nil {
 		log.Fatal(err)
@@ -370,14 +370,14 @@ func TestSendCmdToClient(t *testing.T) {
 	// send introduced a  race condition
 }
 
-func waitFuncTimeout(f func()) chan int {
+/*func waitFuncTimeout(f func()) chan int {
 	done := make(chan int)
 	go func() {
 		f()
 		done <- 1
 	}()
 	return done
-}
+}*/
 
 func dialer(s *Server) func(context.Context, string) (net.Conn, error) {
 	lis := bufconn.Listen(1024 * 1024)
@@ -400,12 +400,12 @@ func dialer(s *Server) func(context.Context, string) (net.Conn, error) {
 func start_grpc() (*Server, *grpc.ClientConn) {
 	ctx := context.Background()
 	s := New("127.0.0.1", 1234)
-	dialer_ := dialer(&s)
+	dialer_ := dialer(s)
 	conn, err := grpc.DialContext(ctx, ":1234", grpc.WithInsecure(), grpc.WithContextDialer(dialer_))
 	if err != nil {
 		log.Fatal(err)
 	}
-	return &s, conn
+	return s, conn
 }
 
 func connect_grpc(s *Server, conn *grpc.ClientConn, id string) comm.Comm_OpenCommClient {

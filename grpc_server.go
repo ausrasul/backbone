@@ -30,7 +30,7 @@ type Server struct {
 	comm.UnimplementedCommServer
 }
 
-func New(Ip string, port int) Server {
+func New(Ip string, port int) *Server {
 	s := Server{
 		ip:                Ip,
 		port:              port,
@@ -41,7 +41,7 @@ func New(Ip string, port int) Server {
 		//clientsOutboxMgr:  make(chan map[string]interface{}),
 	}
 	s.cmd_handlers_lock <- 1
-	return s
+	return &s
 }
 
 func (s *Server) SetOnConnect(onConnectCallback func(string)) {
