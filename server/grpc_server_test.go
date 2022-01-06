@@ -16,16 +16,14 @@ import (
 
 func TestInstantiate(t *testing.T) {
 	testData := []struct {
-		ip   string
-		port int
+		addr string
 	}{
-		{ip: "localhost", port: 1234},
-		{ip: "localhost1", port: 12345},
+		{addr: "localhost:1234"},
+		{addr: "localhost1:12345"},
 	}
 	for _, data := range testData {
-		Server := New(data.ip, data.port)
-		assert.Equal(t, Server.ip, data.ip, "Ip not set")
-		assert.Equal(t, Server.port, data.port, "Port not set")
+		Server := New(data.addr)
+		assert.Equal(t, Server.addr, data.addr, "Host not set")
 	}
 }
 
@@ -42,7 +40,7 @@ func TestOnConnectCallback(t *testing.T) {
 			expected: "monkey",
 		},
 	}
-	Server := New("localhost", 1234)
+	Server := New("localhost:1234")
 	for _, data := range testData {
 		Server.SetOnConnect(data.function)
 		Server.onConnect(data.input)
@@ -63,7 +61,7 @@ func TestSetOnDisconnectCallback(t *testing.T) {
 			expected: "monkey",
 		},
 	}
-	Server := New("localhost", 1234)
+	Server := New("localhost:1234")
 	for _, data := range testData {
 		Server.SetOnDisconnect(data.function)
 		Server.onDisconnect(data.input)
@@ -108,7 +106,7 @@ func TestClientConnect(t *testing.T) {
 			"Should not call on connect",
 		},
 	}
-	s := New("127.0.0.1", 1234)
+	s := New("127.0.0.1:1234")
 	recvChan := make(chan string)
 	s.SetOnConnect(func(str string) { recvChan <- str })
 
@@ -376,7 +374,7 @@ func dialer(s *Server) func(context.Context, string) (net.Conn, error) {
 
 func start_grpc() (*Server, *grpc.ClientConn) {
 	ctx := context.Background()
-	s := New("127.0.0.1", 1234)
+	s := New("127.0.0.1:1234")
 	dialer_ := dialer(s)
 	conn, err := grpc.DialContext(ctx, ":1234", grpc.WithInsecure(), grpc.WithContextDialer(dialer_))
 	if err != nil {

@@ -8,7 +8,6 @@ package server
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -18,8 +17,7 @@ import (
 )
 
 type Server struct {
-	ip                   string
-	port                 int
+	addr                 string
 	onConnect            func(string)
 	onDisconnect         func(string)
 	cmd_handlers         map[string]map[string]func(string, string)
@@ -30,10 +28,9 @@ type Server struct {
 	comm.UnimplementedCommServer
 }
 
-func New(Ip string, port int) *Server {
+func New(addr string) *Server {
 	s := Server{
-		ip:                Ip,
-		port:              port,
+		addr:              addr,
 		cmd_handlers:      make(map[string]map[string]func(string, string)),
 		cmd_handlers_lock: make(chan int, 1),
 		clientsOutbox:     make(map[string]chan *comm.Command),
@@ -53,7 +50,7 @@ func (s *Server) SetOnDisconnect(onDisconnectCallback func(string)) {
 }
 
 func (s *Server) Start() error {
-	lis, err := net.Listen("tcp", ":"+fmt.Sprint(s.port))
+	lis, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		return err
 	}
