@@ -159,19 +159,3 @@ func (s *Server) getClientCmdHandler(client_id string, cmd_name string) (func(st
 	s.cmd_handlers_lock <- 1
 	return handler, ok
 }
-
-/*func (s *Server) clientsOutboxMgrSvr(){
-	for command := range s.clientsOutboxMgr{
-		cmd_name := command["name"]
-		cmd_arg := command["arg"]
-		switch{
-		case cmd_name == "delete":
-			delete(s.clientsOutbox, cmd_arg.(string))
-		case cmd_name == "create":
-			s.clientsOutbox[cmd_arg.(string)] = make(chan *comm.Command)
-		case cmd_name == "get":
-			ch, ok := s.clientsOutbox[cmd_arg]
-		}
-	}
-
-}*/

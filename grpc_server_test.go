@@ -1,26 +1,3 @@
-/*
-	Background:
-	DONE I need a package that establishes grpc server,
-	DONE we should be able to:
-	DONE API- instanciate it with ip and port
-	DONE API- assign connect/disconnect handlers
-	DONE API- tell it to start.
-
-	DONE the reason we have to tell it to start, is to give us time to load on connect/disconnect handlers.
-
-	DONE after it starts, it:
-	DONE - allow grpc clients to automatically connect to it.
-	DONE - when client sends id, it calls onconnect with id.
-	DONE API- the server allow me to set handlers per client id
-	DONE GRPC- when client sends other commands, it calls the appropriate handler.
-
-	DONE - call onDisconnect when client disconnects.
-	DONE - delete disconnected clients' handlers
-	API- allow me to send commands to different clients.
-	- handle race condition when sending command to a disconnected client.
-
-*/
-
 package backbone
 
 import (
