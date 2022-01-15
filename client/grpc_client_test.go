@@ -16,6 +16,12 @@ import (
 /*
 	DONE - instantiated with server address and port
 	DONE - setOnConnect and onDisconnect
+	after instantiation, we call client connect,
+	that will do openComm and start bidirectional communication.
+	but this is implementation.
+	the behavior is:
+	when client call connect, it should be able to send commands to server
+	and it should receive commands from server.
 	- connects to server by calling openComm
 	- sends commands to server
 	- add commands handlers
@@ -96,6 +102,65 @@ func TestSetOnDisconnectCallback(t *testing.T) {
 		assert.Equal(t, data.expect_call, callback_called, data.msg)
 		callback_called = false
 	}
+}
+func TestClientSendCommand(t *testing.T) {
+	tests := []struct {
+		name       string
+		cmdName    string
+		cmdArg     string
+		expectCall bool
+		errMsg     string
+	}{
+		{
+			"send command",
+			"test_cmd",
+			"1234",
+			true,
+			"command should be sent",
+		},
+		/*		{
+					"Valid id",
+					"id",
+					"12345",
+					"12345",
+					"Id was not received",
+				},
+				{
+					"Duplicate id",
+					"id",
+					"12345",
+					"",
+					"Duplicate Id, should not call on connect",
+				},
+				{
+					"Not id",
+					"not_id",
+					"123",
+					"",
+					"Should not call on connect",
+				},*/
+	}
+	c := New("123123", ":1234")
+	s, conn := start_grpc_server()
+	_, _ = s, conn
+
+	//stream := connect_grpc(s, conn, "clientA")
+	/*wait_connect := make(chan struct{})
+	s.SetOnConnect(func(client_id string) {
+		close(wait_connect)
+	})
+	client := comm.NewCommClient(conn)
+	stream, _ := client.OpenComm(context.Background())
+	stream.Send(&comm.Command{Name: "id", Arg: id})
+	<-wait_connect
+	return stream
+	*/
+
+	recvChan := make(chan string)
+	c.SetOnConnect(func() { recvChan <- "connected" })
+	_ = tests
+	_ = c
+
 }
 
 func TestClientConnect(t *testing.T) {
