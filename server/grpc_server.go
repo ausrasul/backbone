@@ -21,7 +21,7 @@ type Server struct {
 	onConnect            func(string)
 	onDisconnect         func(string)
 	cmd_handlers         map[string]map[string]func(string, string)
-	cmd_handlers_lock    chan int
+	cmd_handlers_mutex   sync.RWMutex
 	clientsOutbox        map[string]chan *comm.Command
 	clientsOutboxRWMutex sync.RWMutex
 	//clientsOutboxMgr  chan map[string]interface{}
@@ -30,14 +30,12 @@ type Server struct {
 
 func New(addr string) *Server {
 	s := Server{
-		addr:              addr,
-		cmd_handlers:      make(map[string]map[string]func(string, string)),
-		cmd_handlers_lock: make(chan int, 1),
-		clientsOutbox:     make(map[string]chan *comm.Command),
-		onDisconnect:      func(s string) {},
+		addr:          addr,
+		cmd_handlers:  make(map[string]map[string]func(string, string)),
+		clientsOutbox: make(map[string]chan *comm.Command),
+		onDisconnect:  func(s string) {},
 		//clientsOutboxMgr:  make(chan map[string]interface{}),
 	}
-	s.cmd_handlers_lock <- 1
 	return &s
 }
 
@@ -131,28 +129,28 @@ func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 }
 
 func (s *Server) deleteClientCmdHandlers(client_id string) {
-	<-s.cmd_handlers_lock
+	s.cmd_handlers_mutex.Lock()
 	delete(s.cmd_handlers, client_id)
-	s.cmd_handlers_lock <- 1
+	s.cmd_handlers_mutex.Unlock()
 }
 func (s *Server) SetCommandHandler(client_id string, cmd_name string, handler func(string, string)) {
-	<-s.cmd_handlers_lock
+	s.cmd_handlers_mutex.Lock()
 	_, ok := s.cmd_handlers[client_id]
 	if !ok {
 		s.cmd_handlers[client_id] = make(map[string]func(string, string))
 	}
 	s.cmd_handlers[client_id][cmd_name] = handler
-	s.cmd_handlers_lock <- 1
+	s.cmd_handlers_mutex.Unlock()
 }
 
 func (s *Server) getClientCmdHandler(client_id string, cmd_name string) (func(string, string), bool) {
-	<-s.cmd_handlers_lock
+	s.cmd_handlers_mutex.RLock()
 	handlers, ok := s.cmd_handlers[client_id]
 	if !ok {
-		s.cmd_handlers_lock <- 1
+		s.cmd_handlers_mutex.RUnlock()
 		return nil, false
 	}
 	handler, ok := handlers[cmd_name]
-	s.cmd_handlers_lock <- 1
+	s.cmd_handlers_mutex.RUnlock()
 	return handler, ok
 }
