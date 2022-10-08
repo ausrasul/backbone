@@ -56,18 +56,3 @@ func getConnection(addr string) *grpc.ClientConn {
 	}
 	return conn
 }
-
-/*func New(Ip string, port int) *Server {
-	s := Server{
-		ip:                Ip,
-		port:              port,
-		cmd_handlers:      make(map[string]map[string]func(string, string)),
-		cmd_handlers_lock: make(chan int, 1),
-		clientsOutbox:     make(map[string]chan *comm.Command),
-		onDisconnect:      func(s string) {},
-		//clientsOutboxMgr:  make(chan map[string]interface{}),
-	}
-	s.cmd_handlers_lock <- 1
-	return &s
-}
-*/

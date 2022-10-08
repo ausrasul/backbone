@@ -27,6 +27,14 @@ import (
 	- add commands handlers
 	- receives commands from server.
 */
+/* this is how it should work
+Done: server listens,
+client initiates connection
+server run onConnect (add handlers)
+client runs Onconnect (add handlers)
+server accepts send command to individual clients.
+client has Send to send to server.
+*/
 
 func TestInstantiateClient(t *testing.T) {
 	testData := []struct {
@@ -47,17 +55,17 @@ func TestInstantiateClient(t *testing.T) {
 func TestOnConnectCallback(t *testing.T) {
 	callback_called := false
 	testData := []struct {
-		function    func()
+		callback    func()
 		expect_call bool
 		msg         string
 	}{
 		{
-			function:    func() { callback_called = true },
+			callback:    func() { callback_called = true },
 			expect_call: true,
 			msg:         "Call back should be called",
 		},
 		{
-			function:    func() { callback_called = true },
+			callback:    func() { callback_called = true },
 			expect_call: false,
 			msg:         "Call back should not be called",
 		},
@@ -65,7 +73,7 @@ func TestOnConnectCallback(t *testing.T) {
 	_ = callback_called
 	client := New("123", ":1234")
 	for _, data := range testData {
-		client.SetOnConnect(data.function)
+		client.SetOnConnect(data.callback)
 		if data.expect_call {
 			client.onConnect()
 		}
@@ -77,17 +85,17 @@ func TestOnConnectCallback(t *testing.T) {
 func TestSetOnDisconnectCallback(t *testing.T) {
 	callback_called := false
 	testData := []struct {
-		function    func()
+		callback    func()
 		expect_call bool
 		msg         string
 	}{
 		{
-			function:    func() { callback_called = true },
+			callback:    func() { callback_called = true },
 			expect_call: true,
 			msg:         "Call back should be called",
 		},
 		{
-			function:    func() { callback_called = true },
+			callback:    func() { callback_called = true },
 			expect_call: false,
 			msg:         "Call back should not be called",
 		},
@@ -95,7 +103,7 @@ func TestSetOnDisconnectCallback(t *testing.T) {
 	_ = callback_called
 	client := New("123", "localhost:1234")
 	for _, data := range testData {
-		client.SetOnDisconnect(data.function)
+		client.SetOnDisconnect(data.callback)
 		if data.expect_call {
 			client.onDisconnect()
 		}
@@ -103,6 +111,9 @@ func TestSetOnDisconnectCallback(t *testing.T) {
 		callback_called = false
 	}
 }
+
+//if we test connect, we will call connect and expect onconnect to be called?
+
 func TestClientSendCommand(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -112,37 +123,26 @@ func TestClientSendCommand(t *testing.T) {
 		errMsg     string
 	}{
 		{
-			"send command",
-			"test_cmd",
-			"1234",
-			true,
-			"command should be sent",
+			name:       "send command",
+			cmdName:    "test_cmd",
+			cmdArg:     "1234",
+			expectCall: true,
+			errMsg:     "command should be sent",
 		},
-		/*		{
-					"Valid id",
-					"id",
-					"12345",
-					"12345",
-					"Id was not received",
-				},
-				{
-					"Duplicate id",
-					"id",
-					"12345",
-					"",
-					"Duplicate Id, should not call on connect",
-				},
-				{
-					"Not id",
-					"not_id",
-					"123",
-					"",
-					"Should not call on connect",
-				},*/
 	}
 	c := New("123123", ":1234")
 	s, conn := start_grpc_server()
 	_, _ = s, conn
+	c.Connect()
+	/*
+		c.SetOnConnect
+		c.Connect
+		when onconnect called
+		c.Send command, expect server to receive.
+	*/
+
+	//and immedietly should be able to call send command.
+	//but that will be not so good, so we should wait for on Connect.
 
 	//stream := connect_grpc(s, conn, "clientA")
 	/*wait_connect := make(chan struct{})

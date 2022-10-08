@@ -5,6 +5,13 @@ package server
 //"github.com/golang/protobuf/proto"
 
 //"github.com/ausrasul/backbone/comm"
+/* this is how it should work
+server listens,
+client initiates connection
+server run onConnect (add handlers)
+client runs Onconnect (add handlers)
+server accepts send command to individual clients.
+*/
 
 import (
 	"errors"
