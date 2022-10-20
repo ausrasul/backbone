@@ -26,6 +26,8 @@ import (
 	- sends commands to server
 	- add commands handlers
 	- receives commands from server.
+
+	NOTE: look at server test see how client should connect to it
 */
 
 func TestInstantiateClient(t *testing.T) {
