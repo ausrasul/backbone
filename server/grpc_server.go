@@ -20,7 +20,7 @@ type Server struct {
 	addr                 string
 	onConnect            func(string)
 	onDisconnect         func(string)
-	cmd_handlers         map[string]map[string]func(string, string)
+	cmdHandlers          map[string]map[string]func(string, string)
 	cmd_handlers_mutex   sync.RWMutex
 	clientsOutbox        map[string]chan *comm.Command
 	clientsOutboxRWMutex sync.RWMutex
@@ -31,7 +31,7 @@ type Server struct {
 func New(addr string) *Server {
 	s := Server{
 		addr:          addr,
-		cmd_handlers:  make(map[string]map[string]func(string, string)),
+		cmdHandlers:   make(map[string]map[string]func(string, string)),
 		clientsOutbox: make(map[string]chan *comm.Command),
 		onDisconnect:  func(s string) {},
 		//clientsOutboxMgr:  make(chan map[string]interface{}),
@@ -130,22 +130,22 @@ func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 
 func (s *Server) deleteClientCmdHandlers(client_id string) {
 	s.cmd_handlers_mutex.Lock()
-	delete(s.cmd_handlers, client_id)
+	delete(s.cmdHandlers, client_id)
 	s.cmd_handlers_mutex.Unlock()
 }
 func (s *Server) SetCommandHandler(client_id string, cmd_name string, handler func(string, string)) {
 	s.cmd_handlers_mutex.Lock()
-	_, ok := s.cmd_handlers[client_id]
+	_, ok := s.cmdHandlers[client_id]
 	if !ok {
-		s.cmd_handlers[client_id] = make(map[string]func(string, string))
+		s.cmdHandlers[client_id] = make(map[string]func(string, string))
 	}
-	s.cmd_handlers[client_id][cmd_name] = handler
+	s.cmdHandlers[client_id][cmd_name] = handler
 	s.cmd_handlers_mutex.Unlock()
 }
 
 func (s *Server) getClientCmdHandler(client_id string, cmd_name string) (func(string, string), bool) {
 	s.cmd_handlers_mutex.RLock()
-	handlers, ok := s.cmd_handlers[client_id]
+	handlers, ok := s.cmdHandlers[client_id]
 	if !ok {
 		s.cmd_handlers_mutex.RUnlock()
 		return nil, false

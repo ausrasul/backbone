@@ -1,6 +1,7 @@
 package backbone
 
 import (
+	"context"
 	"log"
 
 	"github.com/ausrasul/backbone/comm"
@@ -8,16 +9,17 @@ import (
 )
 
 type Client struct {
-	server_addr  string
+	serverAddr   string
 	id           string
 	onConnect    func()
 	onDisconnect func()
+	stream       comm.Comm_OpenCommClient
 }
 
 func New(id string, addr string) *Client {
 	return &Client{
-		server_addr: addr,
-		id:          id,
+		serverAddr: addr,
+		id:         id,
 	}
 }
 
@@ -30,28 +32,42 @@ func (c *Client) SetOnDisconnect(callback func()) {
 }
 
 func (c *Client) Start() {
-	conn := getConnection(c.server_addr)
+	conn := getConnection(c.serverAddr)
 	defer conn.Close()
 	//c.connect(conn)
 }
 
 func (c *Client) connect(conn *grpc.ClientConn) {
 	client := comm.NewCommClient(conn)
-	_ = client
-	/*
-		stream, err := client.OpenComm(context.Background())
-		stream.Send(&comm.Command{Name: "id", Arg: "client1"}) // we have to send this as first command.
-		for {
-			in, err := stream.Recv()
-			if err == io.EOF {
-				// read done.
-				close(waitc)
-				return
-			}
-			stream.Send(&comm.Command{Name: "test_command", Arg: "test args"})
-		}
-	*/
+	stream, err := client.OpenComm(context.Background())
+	if err != nil {
+		log.Fatal("Unable to establish bidirectional stream")
+	}
+	c.stream = stream
+	if err := c.Send("id", c.id); err != nil {
+		log.Fatal("Server not authorizing client ", err)
+	}
 }
+
+/*
+	if err := stream.Send(&comm.Command{Name: "id", Arg: c.id}); err != nil {
+		log.Fatalf("Failed to send command: %v", err)
+	}*/
+/*	for {
+		in, err := stream.Recv()
+		if err == io.EOF {
+			// read done.
+			close(waitc)
+			return
+		}
+		stream.Send(&comm.Command{Name: "test_command", Arg: "test args"})
+	}
+*/
+
+func (c *Client) Send(cmdName string, cmdArg string) error {
+	return c.stream.Send(&comm.Command{Name: cmdName, Arg: cmdArg})
+}
+
 func getConnection(addr string) *grpc.ClientConn {
 	// Set up a connection to the server.
 	conn, err := grpc.Dial(addr, grpc.WithInsecure())

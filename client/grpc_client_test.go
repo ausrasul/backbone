@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/ausrasul/backbone/comm"
 	"github.com/ausrasul/backbone/server"
@@ -20,8 +21,10 @@ import (
 	that will do openComm and start bidirectional communication and identify itself.
 	but this is implementation.
 	the behavior is:
-	when client call connect, it should be able to send commands to server
-	and it should receive commands from server.
+	when client call connect,
+	1. it should be able to send commands to server (handled by server handler)
+	2. and it should receive commands from server (handled by client handler)
+
 	- connects to server by calling openComm
 	- sends commands to server
 	- add commands handlers
@@ -41,188 +44,165 @@ func TestInstantiateClient(t *testing.T) {
 	for _, data := range testData {
 		client := New(data.id, data.addr)
 		assert.IsType(t, &Client{}, client, "New client should be of type client")
-		assert.Equal(t, client.server_addr, data.addr, "Host not set")
+		assert.Equal(t, client.serverAddr, data.addr, "Host not set")
 		assert.Equal(t, client.id, data.id, "Id not set")
 	}
 }
 
 func TestOnConnectCallback(t *testing.T) {
-	callback_called := false
+	callbackCalled := false
 	testData := []struct {
-		function    func()
-		expect_call bool
-		msg         string
+		function   func()
+		expectCall bool
+		msg        string
 	}{
 		{
-			function:    func() { callback_called = true },
-			expect_call: true,
-			msg:         "Call back should be called",
+			function:   func() { callbackCalled = true },
+			expectCall: true,
+			msg:        "Call back should be called",
 		},
 		{
-			function:    func() { callback_called = true },
-			expect_call: false,
-			msg:         "Call back should not be called",
+			function:   func() { callbackCalled = true },
+			expectCall: false,
+			msg:        "Call back should not be called",
 		},
 	}
-	_ = callback_called
+	_ = callbackCalled
 	client := New("123", ":1234")
 	for _, data := range testData {
 		client.SetOnConnect(data.function)
-		if data.expect_call {
+		if data.expectCall {
 			client.onConnect()
 		}
-		assert.Equal(t, data.expect_call, callback_called, data.msg)
-		callback_called = false
+		assert.Equal(t, data.expectCall, callbackCalled, data.msg)
+		callbackCalled = false
 	}
 }
 
 func TestSetOnDisconnectCallback(t *testing.T) {
-	callback_called := false
+	callbackCalled := false
 	testData := []struct {
-		function    func()
-		expect_call bool
-		msg         string
+		function   func()
+		expectCall bool
+		msg        string
 	}{
 		{
-			function:    func() { callback_called = true },
-			expect_call: true,
-			msg:         "Call back should be called",
+			function:   func() { callbackCalled = true },
+			expectCall: true,
+			msg:        "Call back should be called",
 		},
 		{
-			function:    func() { callback_called = true },
-			expect_call: false,
-			msg:         "Call back should not be called",
+			function:   func() { callbackCalled = true },
+			expectCall: false,
+			msg:        "Call back should not be called",
 		},
 	}
-	_ = callback_called
+	_ = callbackCalled
 	client := New("123", "localhost:1234")
 	for _, data := range testData {
 		client.SetOnDisconnect(data.function)
-		if data.expect_call {
+		if data.expectCall {
 			client.onDisconnect()
 		}
-		assert.Equal(t, data.expect_call, callback_called, data.msg)
-		callback_called = false
+		assert.Equal(t, data.expectCall, callbackCalled, data.msg)
+		callbackCalled = false
 	}
 }
+
 func TestClientSendCommand(t *testing.T) {
 	tests := []struct {
-		name       string
-		cmdName    string
-		cmdArg     string
-		expectCall bool
-		errMsg     string
-	}{
-		{
-			"send command",
-			"test_cmd",
-			"1234",
-			true,
-			"command should be sent",
-		},
-		/*		{
-					"Valid id",
-					"id",
-					"12345",
-					"12345",
-					"Id was not received",
-				},
-				{
-					"Duplicate id",
-					"id",
-					"12345",
-					"",
-					"Duplicate Id, should not call on connect",
-				},
-				{
-					"Not id",
-					"not_id",
-					"123",
-					"",
-					"Should not call on connect",
-				},*/
-	}
-	c := New("123123", ":1234")
-	s, conn := start_grpc_server()
-	_, _ = s, conn
-
-	//stream := connect_grpc(s, conn, "clientA")
-	/*wait_connect := make(chan struct{})
-	s.SetOnConnect(func(client_id string) {
-		close(wait_connect)
-	})
-	client := comm.NewCommClient(conn)
-	stream, _ := client.OpenComm(context.Background())
-	stream.Send(&comm.Command{Name: "id", Arg: id})
-	<-wait_connect
-	return stream
-	*/
-
-	recvChan := make(chan string)
-	c.SetOnConnect(func() { recvChan <- "connected" })
-	_ = tests
-	_ = c
-
-}
-
-func TestClientConnect(t *testing.T) {
-	tests := []struct {
 		name     string
+		clientId string
 		cmdName  string
 		cmdArg   string
-		expected string
 		errMsg   string
 	}{
 		{
-			"Valid id",
-			"id",
-			"1234",
-			"1234",
-			"Id was not received",
+			name:     "send a command",
+			clientId: "client1",
+			cmdName:  "test_cmd",
+			cmdArg:   "1234",
+			errMsg:   "command should be handled by server",
 		},
-		/*		{
-					"Valid id",
-					"id",
-					"12345",
-					"12345",
-					"Id was not received",
-				},
-				{
-					"Duplicate id",
-					"id",
-					"12345",
-					"",
-					"Duplicate Id, should not call on connect",
-				},
-				{
-					"Not id",
-					"not_id",
-					"123",
-					"",
-					"Should not call on connect",
-				},*/
+		{
+			name:     "send a command",
+			clientId: "client2",
+			cmdName:  "test_command_2",
+			cmdArg:   "12345",
+			errMsg:   "command should be handled by server",
+		},
 	}
-	c := New("123123", ":1234")
-	s, conn := start_grpc_server()
-	_, _ = s, conn
+	for _, test := range tests {
+		// prepare server
+		s, conn := startGrpcServer()
+		_, _ = s, conn
+		cmdRecieved := make(chan string, 10)
+		serverHandler := func(clientId string, arg string) {
+			cmdRecieved <- arg
+		}
+		s.SetCommandHandler(test.clientId, test.cmdName, serverHandler)
+		s.SetOnConnect(func(any string) {})
+		// test client
+		c := New(test.clientId, ":1234")
+		c.connect(conn)
+		assert.Nil(t, c.Send(test.cmdName, test.cmdArg))
+		select {
+		case <-cmdRecieved:
+		case <-time.After(1 * time.Second):
+			t.FailNow()
+		}
+	}
+}
 
-	//stream := connect_grpc(s, conn, "clientA")
-	/*wait_connect := make(chan struct{})
-	s.SetOnConnect(func(client_id string) {
-		close(wait_connect)
-	})
-	client := comm.NewCommClient(conn)
-	stream, _ := client.OpenComm(context.Background())
-	stream.Send(&comm.Command{Name: "id", Arg: id})
-	<-wait_connect
-	return stream
-	*/
+func TestClientReceiveCommand(t *testing.T) {
+	tests := []struct {
+		name            string
+		clientId        string
+		cmdName         string
+		cmdArg          string
+		cmdNameByServer string
+		cmdArgByServer  string
+		errMsg          string
+	}{
+		{
+			name:            "send a command",
+			clientId:        "client1",
+			cmdName:         "test_cmd",
+			cmdArg:          "1234",
+			cmdNameByServer: "test_cmd",
+			cmdArgByServer:  "1234",
+			errMsg:          "command should be handled by server",
+		},
+		{
+			name:            "send a command",
+			clientId:        "client2",
+			cmdName:         "test_command_2",
+			cmdArg:          "12345",
+			cmdNameByServer: "test_command_2",
+			cmdArgByServer:  "12345",
+			errMsg:          "command should be handled by server",
+		},
+	}
+	for _, test := range tests {
+		// prepare server
+		s, conn := startGrpcServer()
+		_, _ = s, conn
+		s.SetCommandHandler("client1", "some command", func(any string, any_ string) {})
+		s.SetOnConnect(func(any string) {})
 
-	recvChan := make(chan string)
-	c.SetOnConnect(func() { recvChan <- "connected" })
-	_ = tests
-	_ = c
+		// test client
+		cmdRecieved := make(chan string, 10)
+		c := New(test.clientId, ":1234")
+		c.SetCommandHandler(test.cmdName, func(args string) { cmdRecieved <- args })
+		c.connect(conn)
 
+		s.Send(test.cmdNameByServer, test.cmdArgByServer)
+		select {
+		case <-cmdRecieved:
+		case <-time.After(1 * time.Second):
+			t.FailNow()
+		}
+	}
 }
 
 /*
@@ -264,7 +244,7 @@ func dialer(s *server.Server) func(context.Context, string) (net.Conn, error) {
 	}
 }
 
-func start_grpc_server() (*server.Server, *grpc.ClientConn) {
+func startGrpcServer() (*server.Server, *grpc.ClientConn) {
 	ctx := context.Background()
 	s := server.New("127.0.0.1:1234")
 	dialer_ := dialer(s)
