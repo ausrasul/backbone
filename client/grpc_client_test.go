@@ -17,7 +17,7 @@ import (
 	DONE - instantiated with server address and port
 	DONE - setOnConnect and onDisconnect
 	after instantiation, we call client connect,
-	that will do openComm and start bidirectional communication.
+	that will do openComm and start bidirectional communication and identify itself.
 	but this is implementation.
 	the behavior is:
 	when client call connect, it should be able to send commands to server

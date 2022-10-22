@@ -38,15 +38,19 @@ func (c *Client) Start() {
 func (c *Client) connect(conn *grpc.ClientConn) {
 	client := comm.NewCommClient(conn)
 	_ = client
-	// Contact the server and print out its response.
-	//ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	//defer cancel()
-	//r, err := c.SayHello(ctx, &pb.HelloRequest{Name: *name})
-	//if err != nil {
-	//	log.Fatalf("could not greet: %v", err)
-	//}
-	//log.Printf("Greeting: %s", r.GetMessage())
-
+	/*
+		stream, err := client.OpenComm(context.Background())
+		stream.Send(&comm.Command{Name: "id", Arg: "client1"}) // we have to send this as first command.
+		for {
+			in, err := stream.Recv()
+			if err == io.EOF {
+				// read done.
+				close(waitc)
+				return
+			}
+			stream.Send(&comm.Command{Name: "test_command", Arg: "test args"})
+		}
+	*/
 }
 func getConnection(addr string) *grpc.ClientConn {
 	// Set up a connection to the server.

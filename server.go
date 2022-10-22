@@ -1,43 +1,53 @@
 package main
 
 import (
+	"context"
 	"io"
-	"time"
+	"log"
 
 	"github.com/ausrasul/backbone/comm"
 	server "github.com/ausrasul/backbone/server"
-	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc"
 )
 
 func main() {
 	go start_server()
-	time.Sleep(time.Millisecond * 100)
 
-	s, conn := start_grpc()
-	stream := connect_grpc(s, conn, "clientA")
-	s.Send("clientA", &comm.Command{Name: "testCommand", Arg: "cmdArg"})
-	in, err := stream.Recv()
-	assert.Equal(t, err, nil, "Should not receive err ")
-	assert.Equal(t, in.Name, "testCommand", "Invalid command name received")
-	assert.Equal(t, in.Arg, "cmdArg", "Invalid command arg received")
-	// should send to different clients.
-	stream2 := connect_grpc(s, conn, "clientB")
-	s.Send("clientB", &comm.Command{Name: "testCommand2", Arg: "cmdArg2"})
-	in, err = stream2.Recv()
-	assert.Equal(t, err, nil, "Should not receive err ")
-	assert.Equal(t, in.Name, "testCommand2", "Invalid command name received")
-	assert.Equal(t, in.Arg, "cmdArg2", "Invalid command arg received")
+	//time.Sleep(time.Millisecond * 10)
 
-	// send doesn't work wehn client disconnects.
-	disconnected := make(chan int)
-	s.SetOnDisconnect(func(client_id string) {
-		disconnected <- 1
-	})
-	stream.CloseSend()
-	<-disconnected
-	s.Send("clientA", &comm.Command{Name: "testCommand", Arg: "cmdArg"})
-	_, err = stream.Recv()
-	assert.Equal(t, err, io.EOF, "client should only receive EOF on closure.")
+	log.Println("client connecting")
+	conn, err := grpc.Dial(":1234", grpc.WithInsecure())
+	log.Println("client connected")
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+
+	client := comm.NewCommClient(conn)
+
+	stream, err := client.OpenComm(context.Background())
+	if err != nil {
+		log.Fatalf("did not open comm: %v", err)
+	}
+
+	waitc := make(chan struct{})
+	stream.Send(&comm.Command{Name: "id", Arg: "client1"})
+	stream.Send(&comm.Command{Name: "test_command", Arg: "test args"})
+
+	for {
+		log.Println("client recieving cmd")
+		in, err := stream.Recv()
+		log.Println("client received cmd")
+		if err == io.EOF {
+			// read done.
+			close(waitc)
+			return
+		}
+		if err != nil {
+			log.Fatalf("Failed to receive a note : %v", err)
+		}
+		log.Println("client got ", in.Name, in.Arg)
+		stream.Send(&comm.Command{Name: "test_command", Arg: "test args"})
+	}
 
 	/*inChan := make(chan string, 10)
 	c := client.New("client1", ":1234")
@@ -48,21 +58,42 @@ func main() {
 }
 
 func start_server() {
+	//time.Sleep(time.Millisecond * 1000)
+	log.Println("starting server")
 	s := server.New("localhost:1234")
-	inChan := make(chan string, 10)
-	//s.SetOnConnect(func(str string) { inChan <- "connect" + str })
-	//s.SetOnDisconnect(func(str string) { inChan <- "disconnect" + str })
+	inChan := make(chan string, 5)
+	s.SetOnConnect(func(str string) { inChan <- "something connected " + str })
+	s.SetOnDisconnect(func(str string) { inChan <- "something disconnect " + str })
 	handler := func(client_id string, arg string) {
+		log.Println("server handling cmd")
 		inChan <- "command: " + client_id + " -- " + arg
-		s.Send("client1", &comm.Command{Name: "testCommand", Arg: "cmdArg"})
+		s.Send(client_id, &comm.Command{Name: "response", Arg: "cmdArg"})
+		log.Println("server handled cmd")
 	}
 	s.SetCommandHandler("client1", "test_command", handler)
-	select {
-	case _ = <-inChan:
-	case <-time.After(time.Millisecond * 100000):
+	go s.Start()
+	log.Println("started.")
+	<-inChan
+	/*for in := range inChan {
+		log.Println("svr got ", in)
 	}
-	/*for data := range inChan {
-		log.Println(data)
-	}*/
+	log.Println("end.")*/
 
 }
+
+/* this is how client should work
+go start_server()
+conn, err := grpc.Dial(":1234", grpc.WithInsecure())
+client := comm.NewCommClient(conn)
+stream, err := client.OpenComm(context.Background())
+stream.Send(&comm.Command{Name: "id", Arg: "client1"}) // we have to send this as first command.
+for {
+	in, err := stream.Recv()
+	if err == io.EOF {
+		// read done.
+		close(waitc)
+		return
+	}
+	stream.Send(&comm.Command{Name: "test_command", Arg: "test args"})
+}
+*/
