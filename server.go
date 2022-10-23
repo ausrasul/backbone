@@ -67,7 +67,7 @@ func start_server() {
 	handler := func(client_id string, arg string) {
 		log.Println("server handling cmd")
 		inChan <- "command: " + client_id + " -- " + arg
-		s.Send(client_id, &comm.Command{Name: "response", Arg: "cmdArg"})
+		s.Send(client_id, "response", "cmdArg")
 		log.Println("server handled cmd")
 	}
 	s.SetCommandHandler("client1", "test_command", handler)

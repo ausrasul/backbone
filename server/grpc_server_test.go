@@ -318,14 +318,16 @@ func TestDeleteCmdHandlerOnDisconnect(t *testing.T) {
 func TestSendCmdToClient(t *testing.T) {
 	s, conn := start_grpc()
 	stream := connect_grpc(s, conn, "clientA")
-	s.Send("clientA", &comm.Command{Name: "testCommand", Arg: "cmdArg"})
+	s.Send("clientA", "testCommand", "cmdArg")
+	//s.Send("clientA", &comm.Command{Name: "testCommand", Arg: "cmdArg"})
 	in, err := stream.Recv()
 	assert.Equal(t, err, nil, "Should not receive err ")
 	assert.Equal(t, in.Name, "testCommand", "Invalid command name received")
 	assert.Equal(t, in.Arg, "cmdArg", "Invalid command arg received")
 	// should send to different clients.
 	stream2 := connect_grpc(s, conn, "clientB")
-	s.Send("clientB", &comm.Command{Name: "testCommand2", Arg: "cmdArg2"})
+	//s.Send("clientB", &comm.Command{Name: "testCommand2", Arg: "cmdArg2"})
+	s.Send("clientB", "testCommand2", "cmdArg2")
 	in, err = stream2.Recv()
 	assert.Equal(t, err, nil, "Should not receive err ")
 	assert.Equal(t, in.Name, "testCommand2", "Invalid command name received")
@@ -338,7 +340,8 @@ func TestSendCmdToClient(t *testing.T) {
 	})
 	stream.CloseSend()
 	<-disconnected
-	s.Send("clientA", &comm.Command{Name: "testCommand", Arg: "cmdArg"})
+	//s.Send("clientA", &comm.Command{Name: "testCommand", Arg: "cmdArg"})
+	s.Send("clientA", "testCommand", "cmdArg")
 	_, err = stream.Recv()
 	assert.Equal(t, err, io.EOF, "client should only receive EOF on closure.")
 
