@@ -167,18 +167,18 @@ func TestClientReceiveCommand(t *testing.T) {
 		{
 			name:            "send a command",
 			clientId:        "client1",
-			cmdName:         "test_cmd",
+			cmdName:         "test_cmd1",
 			cmdArg:          "1234",
-			cmdNameByServer: "test_cmd",
+			cmdNameByServer: "test_cmd1",
 			cmdArgByServer:  "1234",
 			errMsg:          "command should be handled by server",
 		},
 		{
 			name:            "send a command",
 			clientId:        "client2",
-			cmdName:         "test_command_2",
+			cmdName:         "test_command_21",
 			cmdArg:          "12345",
-			cmdNameByServer: "test_command_2",
+			cmdNameByServer: "test_command_21",
 			cmdArgByServer:  "12345",
 			errMsg:          "command should be handled by server",
 		},
@@ -187,7 +187,7 @@ func TestClientReceiveCommand(t *testing.T) {
 		// prepare server
 		s, conn := startGrpcServer()
 		_, _ = s, conn
-		s.SetCommandHandler("client1", "some command", func(any string, any_ string) {})
+		s.SetCommandHandler(test.clientId, test.cmdName, func(any string, any_ string) {})
 		s.SetOnConnect(func(any string) {})
 
 		// test client
@@ -196,10 +196,10 @@ func TestClientReceiveCommand(t *testing.T) {
 		c.SetCommandHandler(test.cmdName, func(args string) { cmdRecieved <- args })
 		c.connect(conn)
 
-		s.Send(test.cmdNameByServer, test.cmdArgByServer)
+		s.Send(test.clientId, test.cmdNameByServer, test.cmdArgByServer)
 		select {
 		case <-cmdRecieved:
-		case <-time.After(1 * time.Second):
+		case <-time.After(5 * time.Second):
 			t.FailNow()
 		}
 	}

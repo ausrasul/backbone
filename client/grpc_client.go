@@ -9,11 +9,12 @@ import (
 )
 
 type Client struct {
-	serverAddr   string
-	id           string
-	onConnect    func()
-	onDisconnect func()
-	stream       comm.Comm_OpenCommClient
+	serverAddr     string
+	id             string
+	onConnect      func()
+	onDisconnect   func()
+	commandHanlder func(string)
+	stream         comm.Comm_OpenCommClient
 }
 
 func New(id string, addr string) *Client {
@@ -31,6 +32,9 @@ func (c *Client) SetOnDisconnect(callback func()) {
 	c.onDisconnect = callback
 }
 
+func (c *Client) SetCommandHandler(commandName string, callback func(string)) {
+	c.commandHanlder = callback
+}
 func (c *Client) Start() {
 	conn := getConnection(c.serverAddr)
 	defer conn.Close()
@@ -44,6 +48,13 @@ func (c *Client) connect(conn *grpc.ClientConn) {
 		log.Fatal("Unable to establish bidirectional stream")
 	}
 	c.stream = stream
+	go func() {
+		for {
+			in, _ := c.stream.Recv()
+			log.Println(in.Arg)
+			c.commandHanlder(in.Arg)
+		}
+	}()
 	if err := c.Send("id", c.id); err != nil {
 		log.Fatal("Server not authorizing client ", err)
 	}
