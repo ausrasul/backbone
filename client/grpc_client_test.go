@@ -15,22 +15,8 @@ import (
 )
 
 /*
-	DONE - instantiated with server address and port
-	DONE - setOnConnect and onDisconnect
-	after instantiation, we call client connect,
-	that will do openComm and start bidirectional communication and identify itself.
-	but this is implementation.
-	the behavior is:
-	when client call connect,
-	1. it should be able to send commands to server (handled by server handler)
-	2. and it should receive commands from server (handled by client handler)
 
-	- connects to server by calling openComm
-	- sends commands to server
-	- add commands handlers
-	- receives commands from server.
-
-	NOTE: look at server test see how client should connect to it
+	NOTE: look at server example code in backbone root, see how client should connect to it
 */
 
 func TestInstantiateClient(t *testing.T) {
@@ -154,77 +140,53 @@ func TestClientSendCommand(t *testing.T) {
 	}
 }
 
-func TestClientReceiveCommand(t *testing.T) {
-	tests := []struct {
-		name            string
-		clientId        string
-		cmdName         string
-		cmdArg          string
-		cmdNameByServer string
-		cmdArgByServer  string
-		errMsg          string
-	}{
-		{
-			name:            "send a command",
-			clientId:        "client1",
-			cmdName:         "test_cmd1",
-			cmdArg:          "1234",
-			cmdNameByServer: "test_cmd1",
-			cmdArgByServer:  "1234",
-			errMsg:          "command should be handled by server",
-		},
-		{
-			name:            "send a command",
-			clientId:        "client2",
-			cmdName:         "test_command_21",
-			cmdArg:          "12345",
-			cmdNameByServer: "test_command_21",
-			cmdArgByServer:  "12345",
-			errMsg:          "command should be handled by server",
-		},
+func TestClientReceiveRegisteredCommands(t *testing.T) {
+	supportedCmds := map[string]string{
+		"test_cmd1": "arg1",
+		"test_cmd2": "arg2",
 	}
-	for _, test := range tests {
-		// prepare server
-		s, conn := startGrpcServer()
-		_, _ = s, conn
-		s.SetCommandHandler(test.clientId, test.cmdName, func(any string, any_ string) {})
-		s.SetOnConnect(func(any string) {})
+	cmdsSentByServer := map[string]string{
+		"test_cmd1": "arg1",
+		"test_cmd2": "arg2",
+		"test_cmd3": "arg3",
+		"test_cmd4": "arg4",
+	}
 
-		// test client
-		cmdRecieved := make(chan string, 10)
-		c := New(test.clientId, ":1234")
-		c.SetCommandHandler(test.cmdName, func(args string) { cmdRecieved <- args })
-		c.connect(conn)
-
-		s.Send(test.clientId, test.cmdNameByServer, test.cmdArgByServer)
-		select {
-		case <-cmdRecieved:
-		case <-time.After(5 * time.Second):
-			t.FailNow()
+	// prepare server
+	s, conn := startGrpcServer()
+	_, _ = s, conn
+	s.SetOnConnect(func(any string) {
+		for cmdName, cmdArg := range cmdsSentByServer {
+			s.Send("client1", cmdName, cmdArg)
 		}
+	})
+
+	// test client
+	handlerCalled := make(chan []string)
+	c := New("client1", ":1234")
+
+	for cmdName, cmdArg := range supportedCmds {
+		c.SetCommandHandler(cmdName, func(arg string) {
+			if arg != cmdArg {
+				return
+			}
+			handlerCalled <- []string{cmdName, arg}
+		})
+	}
+	c.connect(conn)
+
+	select {
+	case cmdRcvd := <-handlerCalled:
+		delete(supportedCmds, cmdRcvd[0])
+		if len(supportedCmds) == 0 {
+			log.Println("ok")
+			break
+		}
+
+	case <-time.After(5 * time.Second):
+		t.FailNow()
 	}
 }
-
-/*
-	dialer_ := dialer(s)
-	conn, err := grpc.DialContext(ctx, ":1234", grpc.WithInsecure(), grpc.WithContextDialer(dialer_))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer conn.Close()
-
-	for _, tt := range tests {
-		client := comm.NewCommClient(conn)
-		stream, _ := client.OpenComm(ctx)
-		stream.Send(&comm.Command{Name: tt.cmdName, Arg: tt.cmdArg})
-		res := ""
-		select {
-		case res = <-recvChan:
-		case <-time.After(time.Millisecond * 10):
-		}
-		assert.Equal(t, tt.expected, res, tt.errMsg)
-
-	}*/
 
 func dialer(s *server.Server) func(context.Context, string) (net.Conn, error) {
 	lis := bufconn.Listen(1024 * 1024)

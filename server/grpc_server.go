@@ -9,7 +9,6 @@ package server
 import (
 	"errors"
 	"io"
-	"log"
 	"net"
 	"sync"
 
@@ -68,9 +67,7 @@ func (s *Server) Send(client_id string, cmdName string, cmdArg string) error {
 	outbox, ok := s.clientsOutbox[client_id]
 	s.clientsOutboxRWMutex.RUnlock()
 	command := &comm.Command{Name: cmdName, Arg: cmdArg}
-	log.Println(s.clientsOutbox)
 	if ok {
-		log.Println("sending command ", cmdName)
 		outbox <- command
 	}
 	return nil
@@ -82,7 +79,6 @@ func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 
 	for {
 		in, err := stream.Recv()
-		log.Println(in.Name)
 		if err == io.EOF {
 			done <- 1
 			s.clientsOutboxRWMutex.Lock()

@@ -1,69 +1,41 @@
 package main
 
 import (
-	"context"
-	"io"
 	"log"
+	"time"
 
-	"github.com/ausrasul/backbone/comm"
+	client "github.com/ausrasul/backbone/client"
 	server "github.com/ausrasul/backbone/server"
-	"google.golang.org/grpc"
 )
 
 func main() {
 	go start_server()
-
-	//time.Sleep(time.Millisecond * 10)
-
-	log.Println("client connecting")
-	conn, err := grpc.Dial(":1234", grpc.WithInsecure())
-	log.Println("client connected")
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-	}
-
-	client := comm.NewCommClient(conn)
-
-	stream, err := client.OpenComm(context.Background())
-	if err != nil {
-		log.Fatalf("did not open comm: %v", err)
-	}
-
-	waitc := make(chan struct{})
-	stream.Send(&comm.Command{Name: "id", Arg: "client1"})
-	stream.Send(&comm.Command{Name: "test_command", Arg: "test args"})
-
-	for {
-		log.Println("client recieving cmd")
-		in, err := stream.Recv()
-		log.Println("client received cmd")
-		if err == io.EOF {
-			// read done.
-			close(waitc)
-			return
-		}
-		if err != nil {
-			log.Fatalf("Failed to receive a note : %v", err)
-		}
-		log.Println("client got ", in.Name, in.Arg)
-		stream.Send(&comm.Command{Name: "test_command", Arg: "test args"})
-	}
-
-	/*inChan := make(chan string, 10)
 	c := client.New("client1", ":1234")
-	c.SetOnConnect(func() { inChan <- "connecting" })
-	c.SetOnDisconnect(func() { inChan <- "disconnected" })
+	c.SetOnConnect(func() {
+		log.Println("client doing stuff when connected")
+		c.SetCommandHandler("response", func(arg string) { log.Println("received response , ", arg) })
+	})
+	c.SetOnDisconnect(func() { log.Println("client disconnected!") })
+	log.Println("client connecting...")
 	c.Start()
-	*/
+	log.Println("client connected...")
+	c.Send("test_command", "client is sending this command")
+	<-time.After(time.Second * 5)
+
 }
 
 func start_server() {
-	//time.Sleep(time.Millisecond * 1000)
 	log.Println("starting server")
 	s := server.New("localhost:1234")
 	inChan := make(chan string, 5)
-	s.SetOnConnect(func(str string) { inChan <- "something connected " + str })
-	s.SetOnDisconnect(func(str string) { inChan <- "something disconnect " + str })
+	s.SetOnConnect(func(str string) {
+		log.Println("server: a client connected")
+		inChan <- "something connected " + str
+	})
+	s.SetOnDisconnect(func(str string) {
+		log.Println("server: client disconnected")
+		inChan <- "something disconnect " + str
+	})
 	handler := func(client_id string, arg string) {
 		log.Println("server handling cmd")
 		inChan <- "command: " + client_id + " -- " + arg
@@ -73,11 +45,10 @@ func start_server() {
 	s.SetCommandHandler("client1", "test_command", handler)
 	go s.Start()
 	log.Println("started.")
-	<-inChan
-	/*for in := range inChan {
+	for in := range inChan {
 		log.Println("svr got ", in)
 	}
-	log.Println("end.")*/
+	log.Println("end.")
 
 }
 
