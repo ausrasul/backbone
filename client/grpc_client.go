@@ -2,6 +2,7 @@ package backbone
 
 import (
 	"context"
+	"errors"
 	"log"
 
 	"github.com/ausrasul/backbone/comm"
@@ -36,17 +37,17 @@ func (c *Client) SetOnDisconnect(callback func()) {
 func (c *Client) SetCommandHandler(commandName string, callback func(string)) {
 	c.commandHanlder[commandName] = callback
 }
-func (c *Client) Start() {
+func (c *Client) Start() error {
 	conn := getConnection(c.serverAddr)
 	defer conn.Close()
-	c.connect(conn)
+	return c.connect(conn)
 }
 
-func (c *Client) connect(conn *grpc.ClientConn) {
+func (c *Client) connect(conn *grpc.ClientConn) error {
 	client := comm.NewCommClient(conn)
 	stream, err := client.OpenComm(context.Background())
 	if err != nil {
-		log.Fatal("Unable to establish bidirectional stream")
+		return errors.New("cannot establish stream")
 	}
 	c.stream = stream
 	go func() {
@@ -59,8 +60,9 @@ func (c *Client) connect(conn *grpc.ClientConn) {
 		}
 	}()
 	if err := c.Send("id", c.id); err != nil {
-		log.Fatal("Server not authorizing client ", err)
+		log.Fatal("Server not registering client ", err)
 	}
+	return nil
 }
 
 func (c *Client) Send(cmdName string, cmdArg string) error {

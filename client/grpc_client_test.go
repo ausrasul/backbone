@@ -15,6 +15,7 @@ import (
 )
 
 /*
+	should call onConnect and onDisconnect
 
 	NOTE: look at server example code in backbone root, see how client should connect to it
 */
@@ -186,6 +187,19 @@ func TestClientReceiveRegisteredCommands(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.FailNow()
 	}
+}
+
+func Test_returnsErrorIfCannotConnect(t *testing.T) {
+	c := New("client1", ":1234")
+	assert.Error(t, c.Start())
+}
+
+func Test_callsOnDisconnectOnOtherErrors(t *testing.T) {
+
+}
+
+func Test_itCallsOnConnectWhenItconnects(t *testing.T) {
+
 }
 
 func dialer(s *server.Server) func(context.Context, string) (net.Conn, error) {
