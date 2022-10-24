@@ -23,6 +23,9 @@ func New(id string, addr string) *Client {
 		serverAddr:     addr,
 		id:             id,
 		commandHanlder: map[string]func(string){},
+		onConnect:      func() {},
+		onDisconnect:   func() {},
+		stream:         nil,
 	}
 }
 
@@ -38,7 +41,9 @@ func (c *Client) SetCommandHandler(commandName string, callback func(string)) {
 	c.commandHanlder[commandName] = callback
 }
 func (c *Client) Start() error {
+	// getConnection is separated so that conn can be mocked during tests.
 	conn := getConnection(c.serverAddr)
+	// this sounds weired, do you close connection right after establishing it?
 	defer conn.Close()
 	return c.connect(conn)
 }
@@ -62,6 +67,7 @@ func (c *Client) connect(conn *grpc.ClientConn) error {
 	if err := c.Send("id", c.id); err != nil {
 		log.Fatal("Server not registering client ", err)
 	}
+	c.onConnect()
 	return nil
 }
 

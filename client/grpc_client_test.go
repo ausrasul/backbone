@@ -36,7 +36,7 @@ func TestInstantiateClient(t *testing.T) {
 	}
 }
 
-func TestOnConnectCallback(t *testing.T) {
+func Test_SetOnConnectCallback(t *testing.T) {
 	callbackCalled := false
 	testData := []struct {
 		function   func()
@@ -66,7 +66,7 @@ func TestOnConnectCallback(t *testing.T) {
 	}
 }
 
-func TestSetOnDisconnectCallback(t *testing.T) {
+func Test_SetOnDisconnectCallback(t *testing.T) {
 	callbackCalled := false
 	testData := []struct {
 		function   func()
@@ -96,7 +96,7 @@ func TestSetOnDisconnectCallback(t *testing.T) {
 	}
 }
 
-func TestClientSendCommand(t *testing.T) {
+func Test_ClientSendCommand(t *testing.T) {
 	tests := []struct {
 		name     string
 		clientId string
@@ -141,7 +141,7 @@ func TestClientSendCommand(t *testing.T) {
 	}
 }
 
-func TestClientReceiveRegisteredCommands(t *testing.T) {
+func Test_ClientReceiveRegisteredCommands(t *testing.T) {
 	supportedCmds := map[string]string{
 		"test_cmd1": "arg1",
 		"test_cmd2": "arg2",
@@ -199,7 +199,26 @@ func Test_callsOnDisconnectOnOtherErrors(t *testing.T) {
 }
 
 func Test_itCallsOnConnectWhenItconnects(t *testing.T) {
+	clientId := "a client"
+	// prepare server
+	s, conn := startGrpcServer()
+	_, _ = s, conn
+	onConnectCalled := make(chan string, 10)
+	s.SetOnConnect(func(any string) {})
+	s.SetCommandHandler(clientId, "command when connect", func(cmdName string, arg string) { onConnectCalled <- "command received from client after connection" })
 
+	// client
+	c := New(clientId, ":1234")
+	c.SetOnConnect(func() {
+		c.Send("command when connect", "some arg")
+	})
+	c.connect(conn)
+
+	select {
+	case <-onConnectCalled:
+	case <-time.After(time.Second):
+		t.FailNow()
+	}
 }
 
 func dialer(s *server.Server) func(context.Context, string) (net.Conn, error) {
