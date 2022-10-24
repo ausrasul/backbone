@@ -1,3 +1,5 @@
+// Example usage code.
+
 package main
 
 import (
