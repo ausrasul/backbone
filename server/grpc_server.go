@@ -24,17 +24,19 @@ type Server struct {
 	cmd_handlers_mutex   sync.RWMutex
 	clientsOutbox        map[string]chan *comm.Command
 	clientsOutboxRWMutex sync.RWMutex
-	//clientsOutboxMgr  chan map[string]interface{}
 	comm.UnimplementedCommServer
 }
 
 func New(addr string) *Server {
 	s := Server{
-		addr:          addr,
-		cmdHandlers:   make(map[string]map[string]func(string, string)),
-		clientsOutbox: make(map[string]chan *comm.Command),
-		onDisconnect:  func(s string) {},
-		//clientsOutboxMgr:  make(chan map[string]interface{}),
+		addr:                    addr,
+		cmdHandlers:             make(map[string]map[string]func(string, string)),
+		clientsOutbox:           make(map[string]chan *comm.Command),
+		onDisconnect:            func(s string) {},
+		onConnect:               func(string) {},
+		cmd_handlers_mutex:      sync.RWMutex{},
+		clientsOutboxRWMutex:    sync.RWMutex{},
+		UnimplementedCommServer: comm.UnimplementedCommServer{},
 	}
 	return &s
 }

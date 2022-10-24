@@ -13,7 +13,11 @@ func main() {
 	c := client.New("client1", ":1234")
 	c.SetOnConnect(func() {
 		log.Println("client doing stuff when connected")
-		c.SetCommandHandler("response", func(arg string) { log.Println("received response , ", arg) })
+		c.SetCommandHandler("response", func(arg string) {
+			time.Sleep(time.Millisecond * 500)
+			c.Send("test_command", "more stuff")
+			log.Println("received response , ", arg)
+		})
 	})
 	c.SetOnDisconnect(func() { log.Println("client disconnected!") })
 	log.Println("client connecting...")

@@ -15,8 +15,6 @@ import (
 )
 
 /*
-	should call onConnect and onDisconnect
-
 	NOTE: look at server example code in backbone root, see how client should connect to it
 */
 
@@ -128,7 +126,6 @@ func Test_ClientSendCommand(t *testing.T) {
 			cmdRecieved <- arg
 		}
 		s.SetCommandHandler(test.clientId, test.cmdName, serverHandler)
-		s.SetOnConnect(func(any string) {})
 		// test client
 		c := New(test.clientId, ":1234")
 		c.connect(conn)
@@ -195,7 +192,25 @@ func Test_returnsErrorIfCannotConnect(t *testing.T) {
 }
 
 func Test_callsOnDisconnectOnOtherErrors(t *testing.T) {
+	clientId := "a client"
+	// prepare server
+	s, conn := startGrpcServer()
+	_, _ = s, conn
+	onDisconnectCalled := make(chan string, 10)
 
+	// client
+	c := New(clientId, ":1234")
+	c.SetOnConnect(func() { c.stream.CloseSend() })
+	c.SetOnDisconnect(func() {
+		close(onDisconnectCalled)
+	})
+	c.connect(conn)
+
+	select {
+	case <-onDisconnectCalled:
+	case <-time.After(time.Second):
+		t.FailNow()
+	}
 }
 
 func Test_itCallsOnConnectWhenItconnects(t *testing.T) {
@@ -204,7 +219,6 @@ func Test_itCallsOnConnectWhenItconnects(t *testing.T) {
 	s, conn := startGrpcServer()
 	_, _ = s, conn
 	onConnectCalled := make(chan string, 10)
-	s.SetOnConnect(func(any string) {})
 	s.SetCommandHandler(clientId, "command when connect", func(cmdName string, arg string) { onConnectCalled <- "command received from client after connection" })
 
 	// client

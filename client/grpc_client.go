@@ -3,6 +3,7 @@ package backbone
 import (
 	"context"
 	"errors"
+	"io"
 	"log"
 
 	"github.com/ausrasul/backbone/comm"
@@ -43,8 +44,6 @@ func (c *Client) SetCommandHandler(commandName string, callback func(string)) {
 func (c *Client) Start() error {
 	// getConnection is separated so that conn can be mocked during tests.
 	conn := getConnection(c.serverAddr)
-	// this sounds weired, do you close connection right after establishing it?
-	defer conn.Close()
 	return c.connect(conn)
 }
 
@@ -57,8 +56,11 @@ func (c *Client) connect(conn *grpc.ClientConn) error {
 	c.stream = stream
 	go func() {
 		for {
-			in, _ := c.stream.Recv()
-
+			in, err := c.stream.Recv()
+			if err == io.EOF {
+				c.onDisconnect()
+				break
+			}
 			if handler, found := c.commandHanlder[in.Name]; found {
 				handler(in.Arg)
 			}
@@ -76,7 +78,7 @@ func (c *Client) Send(cmdName string, cmdArg string) error {
 }
 
 func getConnection(addr string) *grpc.ClientConn {
-	// Set up a connection to the server.
+	// Set up a connection to the server. this is mocked during testing
 	conn, err := grpc.Dial(addr, grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
