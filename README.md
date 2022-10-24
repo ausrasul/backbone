@@ -1,5 +1,8 @@
 # Backbone
 A Golang library for server client communication, uses gRPC under the hood.
+### Documentation
+[Documentation]
+
 ## Features:
 - Dynamically add/change RPC methods (SetCommandHandler)
 - User defined authentication and authorization (using OnConnect event)
@@ -64,3 +67,11 @@ func main() {
     <-time.After(time.Second * 5)
 }
 ```
+
+## License
+
+MIT
+
+[//]: #
+
+    [Documentation]: <https://pkg.go.dev/github.com/ausrasul/backbone>
