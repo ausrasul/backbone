@@ -18,9 +18,9 @@ import (
 
 type Server struct {
 	addr                 string
-	onConnect            func(string)
-	onDisconnect         func(string)
-	cmdHandlers          map[string]map[string]func(string, string)
+	onConnect            func(*Server, string)
+	onDisconnect         func(*Server, string)
+	cmdHandlers          map[string]map[string]func(*Server, string, string)
 	cmd_handlers_mutex   sync.RWMutex
 	clientsOutbox        map[string]chan *comm.Command
 	clientsOutboxRWMutex sync.RWMutex
@@ -30,10 +30,10 @@ type Server struct {
 func New(addr string) *Server {
 	s := Server{
 		addr:                    addr,
-		cmdHandlers:             make(map[string]map[string]func(string, string)),
+		cmdHandlers:             make(map[string]map[string]func(*Server, string, string)),
 		clientsOutbox:           make(map[string]chan *comm.Command),
-		onDisconnect:            func(s string) {},
-		onConnect:               func(string) {},
+		onDisconnect:            func(*Server, string) {},
+		onConnect:               func(*Server, string) {},
 		cmd_handlers_mutex:      sync.RWMutex{},
 		clientsOutboxRWMutex:    sync.RWMutex{},
 		UnimplementedCommServer: comm.UnimplementedCommServer{},
@@ -41,11 +41,11 @@ func New(addr string) *Server {
 	return &s
 }
 
-func (s *Server) SetOnConnect(onConnectCallback func(string)) {
+func (s *Server) SetOnConnect(onConnectCallback func(*Server, string)) {
 	s.onConnect = onConnectCallback
 }
 
-func (s *Server) SetOnDisconnect(onDisconnectCallback func(string)) {
+func (s *Server) SetOnDisconnect(onDisconnectCallback func(*Server, string)) {
 	s.onDisconnect = onDisconnectCallback
 }
 
@@ -88,7 +88,7 @@ func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 			s.clientsOutboxRWMutex.Unlock()
 
 			s.deleteClientCmdHandlers(client_id)
-			go s.onDisconnect(client_id)
+			go s.onDisconnect(s, client_id)
 			return nil
 		}
 		if err != nil {
@@ -119,13 +119,13 @@ func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 					}
 				}
 			}()
-			s.onConnect(in.Arg)
+			s.onConnect(s, in.Arg)
 		}
 		handler, ok := s.getClientCmdHandler(client_id, in.Name)
 		if !ok {
 			continue
 		}
-		go handler(client_id, in.Arg)
+		go handler(s, client_id, in.Arg)
 	}
 }
 
@@ -134,17 +134,17 @@ func (s *Server) deleteClientCmdHandlers(client_id string) {
 	delete(s.cmdHandlers, client_id)
 	s.cmd_handlers_mutex.Unlock()
 }
-func (s *Server) SetCommandHandler(client_id string, cmd_name string, handler func(string, string)) {
+func (s *Server) SetCommandHandler(client_id string, cmd_name string, handler func(*Server, string, string)) {
 	s.cmd_handlers_mutex.Lock()
 	_, ok := s.cmdHandlers[client_id]
 	if !ok {
-		s.cmdHandlers[client_id] = make(map[string]func(string, string))
+		s.cmdHandlers[client_id] = make(map[string]func(*Server, string, string))
 	}
 	s.cmdHandlers[client_id][cmd_name] = handler
 	s.cmd_handlers_mutex.Unlock()
 }
 
-func (s *Server) getClientCmdHandler(client_id string, cmd_name string) (func(string, string), bool) {
+func (s *Server) getClientCmdHandler(client_id string, cmd_name string) (func(*Server, string, string), bool) {
 	s.cmd_handlers_mutex.RLock()
 	handlers, ok := s.cmdHandlers[client_id]
 	if !ok {

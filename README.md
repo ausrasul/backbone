@@ -20,15 +20,15 @@ func main() {
 
     // Define event handlers
     eventChan := make(chan string, 5)
-    s.SetOnConnect(func(clientId string) {
+    s.SetOnConnect(func(s *server.Server, clientId string) {
         eventChan <- "a client disconnected " + clientId
     })
-    s.SetOnDisconnect(func(clientId string) {
+    s.SetOnDisconnect(func(s *server.Server, clientId string) {
         eventChan <- "a client disconnected " + clientId
     })
     
     // Define command handlers
-    s.SetCommandHandler("client id 123", "command_1", func(clientId string, arg string) {
+    s.SetCommandHandler("client id 123", "command_1", func(s *server.Server, clientId string, arg string) {
         eventChan <- "command received: " + clientId + " -- " + arg
         // handle the command..
         // ..
@@ -51,10 +51,10 @@ func main() {
     // Instantiate client
     c := client.New("client id 123", ":1234")
     // Set event handlers
-    c.SetOnConnect(func() { log.Println("connected!") })
-    c.SetOnDisconnect(func() { log.Println("disconnected!") })
+    c.SetOnConnect(func(c *client.Client) { log.Println("connected!") })
+    c.SetOnDisconnect(func(c *client.Client) { log.Println("disconnected!") })
     // Set command handlers
-    c.SetCommandHandler("response", func(arg string) {
+    c.SetCommandHandler("response", func(c *client.Client, arg string) {
         log.Println("received command from server , ", arg)
         // handle command
         // ...

@@ -13,9 +13,9 @@ import (
 type Client struct {
 	serverAddr     string
 	id             string
-	onConnect      func()
-	onDisconnect   func()
-	commandHanlder map[string]func(string)
+	onConnect      func(*Client)
+	onDisconnect   func(*Client)
+	commandHanlder map[string]func(*Client, string)
 	stream         comm.Comm_OpenCommClient
 }
 
@@ -23,22 +23,22 @@ func New(id string, addr string) *Client {
 	return &Client{
 		serverAddr:     addr,
 		id:             id,
-		commandHanlder: map[string]func(string){},
-		onConnect:      func() {},
-		onDisconnect:   func() {},
+		commandHanlder: map[string]func(*Client, string){},
+		onConnect:      func(c *Client) {},
+		onDisconnect:   func(c *Client) {},
 		stream:         nil,
 	}
 }
 
-func (c *Client) SetOnConnect(callback func()) {
+func (c *Client) SetOnConnect(callback func(*Client)) {
 	c.onConnect = callback
 }
 
-func (c *Client) SetOnDisconnect(callback func()) {
+func (c *Client) SetOnDisconnect(callback func(*Client)) {
 	c.onDisconnect = callback
 }
 
-func (c *Client) SetCommandHandler(commandName string, callback func(string)) {
+func (c *Client) SetCommandHandler(commandName string, callback func(*Client, string)) {
 	c.commandHanlder[commandName] = callback
 }
 func (c *Client) Start() error {
@@ -58,18 +58,18 @@ func (c *Client) connect(conn *grpc.ClientConn) error {
 		for {
 			in, err := c.stream.Recv()
 			if err == io.EOF {
-				c.onDisconnect()
+				c.onDisconnect(c)
 				break
 			}
 			if handler, found := c.commandHanlder[in.Name]; found {
-				handler(in.Arg)
+				handler(c, in.Arg)
 			}
 		}
 	}()
 	if err := c.Send("id", c.id); err != nil {
 		log.Fatal("Server not registering client ", err)
 	}
-	c.onConnect()
+	c.onConnect(c)
 	return nil
 }
 

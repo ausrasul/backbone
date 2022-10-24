@@ -37,17 +37,17 @@ func TestInstantiateClient(t *testing.T) {
 func Test_SetOnConnectCallback(t *testing.T) {
 	callbackCalled := false
 	testData := []struct {
-		function   func()
+		function   func(*Client)
 		expectCall bool
 		msg        string
 	}{
 		{
-			function:   func() { callbackCalled = true },
+			function:   func(c *Client) { callbackCalled = true },
 			expectCall: true,
 			msg:        "Call back should be called",
 		},
 		{
-			function:   func() { callbackCalled = true },
+			function:   func(c *Client) { callbackCalled = true },
 			expectCall: false,
 			msg:        "Call back should not be called",
 		},
@@ -57,7 +57,7 @@ func Test_SetOnConnectCallback(t *testing.T) {
 	for _, data := range testData {
 		client.SetOnConnect(data.function)
 		if data.expectCall {
-			client.onConnect()
+			client.onConnect(client)
 		}
 		assert.Equal(t, data.expectCall, callbackCalled, data.msg)
 		callbackCalled = false
@@ -67,17 +67,17 @@ func Test_SetOnConnectCallback(t *testing.T) {
 func Test_SetOnDisconnectCallback(t *testing.T) {
 	callbackCalled := false
 	testData := []struct {
-		function   func()
+		function   func(*Client)
 		expectCall bool
 		msg        string
 	}{
 		{
-			function:   func() { callbackCalled = true },
+			function:   func(c *Client) { callbackCalled = true },
 			expectCall: true,
 			msg:        "Call back should be called",
 		},
 		{
-			function:   func() { callbackCalled = true },
+			function:   func(c *Client) { callbackCalled = true },
 			expectCall: false,
 			msg:        "Call back should not be called",
 		},
@@ -87,7 +87,7 @@ func Test_SetOnDisconnectCallback(t *testing.T) {
 	for _, data := range testData {
 		client.SetOnDisconnect(data.function)
 		if data.expectCall {
-			client.onDisconnect()
+			client.onDisconnect(client)
 		}
 		assert.Equal(t, data.expectCall, callbackCalled, data.msg)
 		callbackCalled = false
@@ -122,7 +122,7 @@ func Test_ClientSendCommand(t *testing.T) {
 		s, conn := startGrpcServer()
 		_, _ = s, conn
 		cmdRecieved := make(chan string, 10)
-		serverHandler := func(clientId string, arg string) {
+		serverHandler := func(s *server.Server, clientId string, arg string) {
 			cmdRecieved <- arg
 		}
 		s.SetCommandHandler(test.clientId, test.cmdName, serverHandler)
@@ -153,7 +153,7 @@ func Test_ClientReceiveRegisteredCommands(t *testing.T) {
 	// prepare server
 	s, conn := startGrpcServer()
 	_, _ = s, conn
-	s.SetOnConnect(func(any string) {
+	s.SetOnConnect(func(*server.Server, string) {
 		for cmdName, cmdArg := range cmdsSentByServer {
 			s.Send("client1", cmdName, cmdArg)
 		}
@@ -164,7 +164,7 @@ func Test_ClientReceiveRegisteredCommands(t *testing.T) {
 	c := New("client1", ":1234")
 
 	for cmdName, cmdArg := range supportedCmds {
-		c.SetCommandHandler(cmdName, func(arg string) {
+		c.SetCommandHandler(cmdName, func(c *Client, arg string) {
 			if arg != cmdArg {
 				return
 			}
@@ -200,8 +200,8 @@ func Test_callsOnDisconnectOnOtherErrors(t *testing.T) {
 
 	// client
 	c := New(clientId, ":1234")
-	c.SetOnConnect(func() { c.stream.CloseSend() })
-	c.SetOnDisconnect(func() {
+	c.SetOnConnect(func(c *Client) { c.stream.CloseSend() })
+	c.SetOnDisconnect(func(c *Client) {
 		close(onDisconnectCalled)
 	})
 	c.connect(conn)
@@ -219,11 +219,13 @@ func Test_itCallsOnConnectWhenItconnects(t *testing.T) {
 	s, conn := startGrpcServer()
 	_, _ = s, conn
 	onConnectCalled := make(chan string, 10)
-	s.SetCommandHandler(clientId, "command when connect", func(cmdName string, arg string) { onConnectCalled <- "command received from client after connection" })
+	s.SetCommandHandler(clientId, "command when connect", func(s *server.Server, cmdName string, arg string) {
+		onConnectCalled <- "command received from client after connection"
+	})
 
 	// client
 	c := New(clientId, ":1234")
-	c.SetOnConnect(func() {
+	c.SetOnConnect(func(c *Client) {
 		c.Send("command when connect", "some arg")
 	})
 	c.connect(conn)

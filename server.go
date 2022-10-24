@@ -13,15 +13,15 @@ import (
 func main() {
 	go start_server()
 	c := client.New("client1", ":1234")
-	c.SetOnConnect(func() {
+	c.SetOnConnect(func(c *client.Client) {
 		log.Println("client doing stuff when connected")
-		c.SetCommandHandler("response", func(arg string) {
+		c.SetCommandHandler("response", func(c *client.Client, arg string) {
 			time.Sleep(time.Millisecond * 500)
 			c.Send("test_command", "more stuff")
 			log.Println("received response , ", arg)
 		})
 	})
-	c.SetOnDisconnect(func() { log.Println("client disconnected!") })
+	c.SetOnDisconnect(func(*client.Client) { log.Println("client disconnected!") })
 	log.Println("client connecting...")
 	c.Start()
 	log.Println("client connected...")
@@ -34,15 +34,15 @@ func start_server() {
 	log.Println("starting server")
 	s := server.New("localhost:1234")
 	inChan := make(chan string, 5)
-	s.SetOnConnect(func(str string) {
+	s.SetOnConnect(func(s *server.Server, str string) {
 		log.Println("server: a client connected")
 		inChan <- "something connected " + str
 	})
-	s.SetOnDisconnect(func(str string) {
+	s.SetOnDisconnect(func(s *server.Server, str string) {
 		log.Println("server: client disconnected")
 		inChan <- "something disconnect " + str
 	})
-	handler := func(client_id string, arg string) {
+	handler := func(s *server.Server, client_id string, arg string) {
 		log.Println("server handling cmd")
 		inChan <- "command: " + client_id + " -- " + arg
 		s.Send(client_id, "response", "cmdArg")
