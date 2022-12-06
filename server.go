@@ -34,15 +34,15 @@ func start_server() {
 	log.Println("starting server")
 	s := server.New("localhost:1234")
 	inChan := make(chan string, 5)
-	s.SetOnConnect(func(s *server.Server, str string) {
+	s.SetOnConnect(func(str string) {
 		log.Println("server: a client connected")
 		inChan <- "something connected " + str
 	})
-	s.SetOnDisconnect(func(s *server.Server, str string) {
+	s.SetOnDisconnect(func(str string) {
 		log.Println("server: client disconnected")
 		inChan <- "something disconnect " + str
 	})
-	handler := func(s *server.Server, client_id string, arg string) {
+	handler := func(client_id string, arg string) {
 		log.Println("server handling cmd")
 		inChan <- "command: " + client_id + " -- " + arg
 		s.Send(client_id, "response", "cmdArg")

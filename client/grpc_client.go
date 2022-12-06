@@ -3,7 +3,6 @@ package backbone
 import (
 	"context"
 	"errors"
-	"io"
 	"log"
 
 	"github.com/ausrasul/backbone/comm"
@@ -57,7 +56,7 @@ func (c *Client) connect(conn *grpc.ClientConn) error {
 	go func() {
 		for {
 			in, err := c.stream.Recv()
-			if err == io.EOF {
+			if err != nil {
 				c.onDisconnect(c)
 				break
 			}

@@ -30,20 +30,20 @@ func TestInstantiate(t *testing.T) {
 func TestOnConnectCallback(t *testing.T) {
 	varToBeChangedByCallBack := ""
 	testData := []struct {
-		function func(*Server, string)
+		function func(string)
 		input    string
 		expected string
 	}{
 		{
 			input:    "monkey",
-			function: func(s *Server, input string) { varToBeChangedByCallBack = "monkey" },
+			function: func(input string) { varToBeChangedByCallBack = "monkey" },
 			expected: "monkey",
 		},
 	}
 	s := New("localhost:1234")
 	for _, data := range testData {
 		s.SetOnConnect(data.function)
-		s.onConnect(s, data.input)
+		s.onConnect(data.input)
 		assert.Equal(t, varToBeChangedByCallBack, data.expected, "Bad onconnect callback")
 	}
 }
@@ -51,20 +51,20 @@ func TestOnConnectCallback(t *testing.T) {
 func TestSetOnDisconnectCallback(t *testing.T) {
 	varToBeChangedByCallBack := ""
 	testData := []struct {
-		function func(*Server, string)
+		function func(string)
 		input    string
 		expected string
 	}{
 		{
 			input:    "monkey",
-			function: func(s *Server, input string) { varToBeChangedByCallBack = "monkey" },
+			function: func(input string) { varToBeChangedByCallBack = "monkey" },
 			expected: "monkey",
 		},
 	}
 	s := New("localhost:1234")
 	for _, data := range testData {
 		s.SetOnDisconnect(data.function)
-		s.onDisconnect(s, data.input)
+		s.onDisconnect(data.input)
 		assert.Equal(t, varToBeChangedByCallBack, data.expected, "Bad onconnect callback")
 	}
 }
@@ -108,7 +108,7 @@ func TestClientConnect(t *testing.T) {
 	}
 	s := New("127.0.0.1:1234")
 	recvChan := make(chan string)
-	s.SetOnConnect(func(s *Server, str string) { recvChan <- str })
+	s.SetOnConnect(func(str string) { recvChan <- str })
 
 	ctx := context.Background()
 	dialer_ := dialer(s)
@@ -163,7 +163,7 @@ func TestOnDisconnect(t *testing.T) {
 	for _, tt := range tests {
 		stream := connect_grpc(s, conn, tt.client_id)
 		disconnected := make(chan string)
-		s.SetOnDisconnect(func(s *Server, client_id string) { disconnected <- client_id })
+		s.SetOnDisconnect(func(client_id string) { disconnected <- client_id })
 
 		if tt.will_disconnect {
 			stream.CloseSend()
@@ -188,13 +188,13 @@ func TestCallCommandHandler(t *testing.T) {
 	s, conn := start_grpc()
 	wait_for_handler := make(chan map[string]string)
 
-	handler := func(s *Server, client_id string, arg string) {
+	handler := func(client_id string, arg string) {
 		wait_for_handler <- map[string]string{"id": client_id, "arg": arg}
 	}
 	tests := []struct {
 		name         string
 		handler_cmd  string
-		handler_func func(*Server, string, string)
+		handler_func func(string, string)
 		client_id    string
 		cmd_name     string
 		cmd_arg      string
@@ -243,7 +243,7 @@ func TestDeleteCmdHandlerOnDisconnect(t *testing.T) {
 	s, conn := start_grpc()
 	wait_for_handler := make(chan int)
 
-	handler1 := func(*Server, string, string) {
+	handler1 := func(string, string) {
 		wait_for_handler <- 1
 	}
 	/*handler2 := func(client_id string, arg string) {
@@ -257,7 +257,7 @@ func TestDeleteCmdHandlerOnDisconnect(t *testing.T) {
 		should_disconnect   bool
 		expected_handler_id int
 		handler_cmd         string
-		handler_func        func(*Server, string, string)
+		handler_func        func(string, string)
 		err_msg             string
 		cmd_name            string
 	}{
@@ -287,7 +287,7 @@ func TestDeleteCmdHandlerOnDisconnect(t *testing.T) {
 	stream := connect_grpc(s, conn, tests[0].client_id)
 	for _, tt := range tests {
 		doneCh := make(chan string)
-		s.SetOnDisconnect(func(s *Server, cid string) {
+		s.SetOnDisconnect(func(cid string) {
 			doneCh <- cid
 		})
 		s.SetCommandHandler(tt.client_id, tt.handler_cmd, tt.handler_func)
@@ -335,7 +335,7 @@ func TestSendCmdToClient(t *testing.T) {
 
 	// send doesn't work wehn client disconnects.
 	disconnected := make(chan int)
-	s.SetOnDisconnect(func(s *Server, client_id string) {
+	s.SetOnDisconnect(func(client_id string) {
 		disconnected <- 1
 	})
 	stream.CloseSend()
@@ -388,7 +388,7 @@ func start_grpc() (*Server, *grpc.ClientConn) {
 
 func connect_grpc(s *Server, conn *grpc.ClientConn, id string) comm.Comm_OpenCommClient {
 	wait_connect := make(chan struct{})
-	s.SetOnConnect(func(s *Server, client_id string) {
+	s.SetOnConnect(func(client_id string) {
 		close(wait_connect)
 	})
 	client := comm.NewCommClient(conn)

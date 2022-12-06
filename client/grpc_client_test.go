@@ -122,7 +122,7 @@ func Test_ClientSendCommand(t *testing.T) {
 		s, conn := startGrpcServer()
 		_, _ = s, conn
 		cmdRecieved := make(chan string, 10)
-		serverHandler := func(s *server.Server, clientId string, arg string) {
+		serverHandler := func(clientId string, arg string) {
 			cmdRecieved <- arg
 		}
 		s.SetCommandHandler(test.clientId, test.cmdName, serverHandler)
@@ -153,7 +153,7 @@ func Test_ClientReceiveRegisteredCommands(t *testing.T) {
 	// prepare server
 	s, conn := startGrpcServer()
 	_, _ = s, conn
-	s.SetOnConnect(func(*server.Server, string) {
+	s.SetOnConnect(func(string) {
 		for cmdName, cmdArg := range cmdsSentByServer {
 			s.Send("client1", cmdName, cmdArg)
 		}
@@ -219,7 +219,7 @@ func Test_itCallsOnConnectWhenItconnects(t *testing.T) {
 	s, conn := startGrpcServer()
 	_, _ = s, conn
 	onConnectCalled := make(chan string, 10)
-	s.SetCommandHandler(clientId, "command when connect", func(s *server.Server, cmdName string, arg string) {
+	s.SetCommandHandler(clientId, "command when connect", func(cmdName string, arg string) {
 		onConnectCalled <- "command received from client after connection"
 	})
 
