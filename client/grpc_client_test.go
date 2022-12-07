@@ -186,6 +186,42 @@ func Test_ClientReceiveRegisteredCommands(t *testing.T) {
 	}
 }
 
+func Test_ClientCallsCommandHandlersAsGoRoutines(t *testing.T) {
+	// prepare server
+	s, conn := startGrpcServer()
+	_, _ = s, conn
+	s.SetOnConnect(func(string) {
+		for i := 0; i < 5; i++ {
+			s.Send("client1", "longProcess", "cmdArgs")
+		}
+	})
+
+	// test client
+	handlerCalled := make(chan int, 10)
+	c := New("client1", ":1234")
+
+	c.SetCommandHandler("longProcess", func(c *Client, arg string) {
+		handlerCalled <- 1
+		time.Sleep(time.Second)
+	})
+
+	c.connect(conn)
+	expectedCalledTimes := 5
+	calledTimes := 0
+	for {
+		select {
+		case _ = <-handlerCalled:
+			calledTimes += 1
+		case <-time.After(200 * time.Millisecond):
+			t.Error("expect to be called ", expectedCalledTimes, ", got ", calledTimes)
+			t.FailNow()
+		}
+		if calledTimes == expectedCalledTimes {
+			break
+		}
+	}
+}
+
 func Test_returnsErrorIfCannotConnect(t *testing.T) {
 	c := New("client1", ":1234")
 	assert.Error(t, c.Start())

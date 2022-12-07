@@ -61,7 +61,7 @@ func (c *Client) connect(conn *grpc.ClientConn) error {
 				break
 			}
 			if handler, found := c.commandHanlder[in.Name]; found {
-				handler(c, in.Arg)
+				go handler(c, in.Arg)
 			}
 		}
 	}()

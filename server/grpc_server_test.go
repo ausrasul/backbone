@@ -239,6 +239,36 @@ func TestCallCommandHandler(t *testing.T) {
 	}
 }
 
+func TestCallCommandHandlerAsGoRoutine(t *testing.T) {
+	s, conn := start_grpc()
+	stream := connect_grpc(s, conn, "client1")
+
+	handler_called := make(chan int, 10)
+
+	s.SetCommandHandler("client1", "longProcess", func(string, string) {
+		handler_called <- 1
+		time.Sleep(time.Second)
+	})
+
+	expectedCalledTimes := 5
+	for i := 0; i < expectedCalledTimes; i++ {
+		stream.Send(&comm.Command{Name: "longProcess", Arg: "cmdArg"})
+	}
+	handlerCalledTimes := 0
+	for {
+		select {
+		case <-handler_called:
+			handlerCalledTimes += 1
+		case <-time.After(200 * time.Millisecond):
+			t.Error("expected called", expectedCalledTimes, "got", handlerCalledTimes)
+			t.FailNow()
+		}
+		if handlerCalledTimes == expectedCalledTimes {
+			break
+		}
+	}
+}
+
 func TestDeleteCmdHandlerOnDisconnect(t *testing.T) {
 	s, conn := start_grpc()
 	wait_for_handler := make(chan int)
