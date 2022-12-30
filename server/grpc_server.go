@@ -86,7 +86,6 @@ func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 			delete(s.clientsOutbox, client_id)
 			s.clientsOutboxRWMutex.Unlock()
 
-			s.deleteClientCmdHandlers(client_id)
 			go s.onDisconnect(client_id)
 			return nil
 		}
@@ -128,11 +127,6 @@ func (s *Server) OpenComm(stream comm.Comm_OpenCommServer) error {
 	}
 }
 
-func (s *Server) deleteClientCmdHandlers(client_id string) {
-	s.cmd_handlers_mutex.Lock()
-	delete(s.cmdHandlers, client_id)
-	s.cmd_handlers_mutex.Unlock()
-}
 func (s *Server) SetCommandHandler(client_id string, cmd_name string, handler func(string, string)) {
 	s.cmd_handlers_mutex.Lock()
 	_, ok := s.cmdHandlers[client_id]
