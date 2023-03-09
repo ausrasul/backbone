@@ -53,8 +53,12 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
-
-	grpcServer := grpc.NewServer()
+	maxMsgSize := 50 * 1024 * 1024
+	grpcServer := grpc.NewServer(
+		grpc.MaxMsgSize(maxMsgSize),
+		grpc.MaxRecvMsgSize(maxMsgSize),
+		grpc.MaxSendMsgSize(maxMsgSize),
+	)
 
 	comm.RegisterCommServer(grpcServer, s)
 

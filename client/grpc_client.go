@@ -78,7 +78,8 @@ func (c *Client) Send(cmdName string, cmdArg string) error {
 
 func getConnection(addr string) *grpc.ClientConn {
 	// Set up a connection to the server. this is mocked during testing
-	conn, err := grpc.Dial(addr, grpc.WithInsecure())
+	maxMsgSize := 50 * 1024 * 1024
+	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize), grpc.MaxCallSendMsgSize(maxMsgSize)))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
